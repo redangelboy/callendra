@@ -19,12 +19,13 @@ model Business {
   plan           String   @default("starter")
   active         Boolean  @default(true)
   createdAt      DateTime @default(now())
+  ownerId        String
 
-  staff        Staff[]
+  barbers      Staff[]
   services     Service[]
   appointments Appointment[]
   schedules    Schedule[]
-  owner        Owner?
+  owner        Owner    @relation(fields: [ownerId], references: [id])
 }
 
 model Staff {
@@ -83,12 +84,11 @@ model Appointment {
 }
 
 model Owner {
-  id         String   @id @default(cuid())
-  businessId String   @unique
-  email      String   @unique
-  password   String
-  name       String
-  createdAt  DateTime @default(now())
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  createdAt DateTime @default(now())
 
-  business Business @relation(fields: [businessId], references: [id])
+  businesses Business[]
 }
