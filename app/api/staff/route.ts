@@ -4,7 +4,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { getMainBusinessIdForOwner, isOwnerMainBusinessSession } from "@/lib/main-business";
 
 const adapter = new PrismaPg({
-  connectionString: "postgresql://callendra_user:callendra123@localhost:5432/callendra"
+  connectionString: process.env.DATABASE_URL!
 });
 const prisma = new PrismaClient({ adapter });
 
@@ -111,6 +111,16 @@ export async function DELETE(req: NextRequest) {
     await prisma.staffAssignment.updateMany({
       where: { staffId: id },
       data: { active: false },
+    });
+
+    await prisma.schedule.updateMany({
+      where: { staffId: id },
+      data: { active: false },
+    });
+
+    await prisma.appointment.updateMany({
+      where: { staffId: id, status: "confirmed" },
+      data: { status: "cancelled" },
     });
 
     await prisma.staff.update({

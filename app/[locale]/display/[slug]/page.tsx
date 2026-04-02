@@ -1,8 +1,37 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
 
-const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const DAYS = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+
+function initSocket(slug: string, onEvent: () => void) {
+  const win = window as any;
+  if (win._callendrSocket) {
+    win._callendrSocket.disconnect();
+    win._callendrSocket = null;
+  }
+  const connect = () => {
+    const socket = win.io(win.location.origin, { transports: ["websocket", "polling"] });
+    win._callendrSocket = socket;
+    socket.on("connect", () => {
+      console.log("Socket connected:", socket.id);
+      socket.emit("join-display", slug);
+      console.log("Joined room: display-" + slug);
+    });
+    socket.on("new-appointment", () => {
+      console.log("New appointment received!");
+      onEvent();
+    });
+  };
+  if (win.io) {
+    connect();
+  } else {
+    const script = document.createElement("script");
+    script.src = "/socket.io/socket.io.js";
+    script.onload = connect;
+    document.head.appendChild(script);
+  }
+}
 
 export default function DisplayPage() {
   const params = useParams();
@@ -22,35 +51,25 @@ export default function DisplayPage() {
     fetchAppointments();
     const interval = setInterval(fetchAppointments, 30000);
     const clock = setInterval(() => setNow(new Date()), 1000);
-  
-    // Socket.io tiempo real
-    import("socket.io-client").then(({ io }) => {
-      const socket = io();
-      socket.emit("join-display", slug);
-      socket.on("new-appointment", fetchAppointments);
-    });
-  
+    initSocket(slug, fetchAppointments);
     return () => {
       clearInterval(interval);
       clearInterval(clock);
     };
   }, [slug]);
 
-  const formatTime = (date: string) => {
-    return new Date(date).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
-  };
+  const formatTime = (date: string) =>
+    new Date(date).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
 
-  const formatClock = (d: Date) => {
-    return d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-  };
+  const formatClock = (d: Date) =>
+    d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
-  // Agrupar citas por barbero
   const staff = business?.staff || [];
   const byStaff = staff.map((s: any) => ({
     ...s,
     appointments: appointments
-      .filter((a) => a.staffId === s.id)
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
+      .filter((a: any) => a.staffId === s.id)
+      .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime()),
   }));
 
   if (!business) return (
@@ -61,7 +80,6 @@ export default function DisplayPage() {
 
   return (
     <main className="min-h-screen bg-gray-950 text-white p-6">
-      {/* Header */}
       <div className="flex justify-between items-center mb-8 border-b border-white/10 pb-6">
         <div>
           <h1 className="text-4xl font-bold tracking-tight">{business.name}</h1>
@@ -72,12 +90,9 @@ export default function DisplayPage() {
           <div className="text-gray-400 text-sm mt-1">{appointments.length} appointments today</div>
         </div>
       </div>
-
-      {/* Grid por barbero */}
       <div className="grid gap-6" style={{ gridTemplateColumns: `repeat(${Math.min(staff.length, 4)}, 1fr)` }}>
         {byStaff.map((s: any) => (
           <div key={s.id} className="bg-gray-900 rounded-2xl overflow-hidden">
-            {/* Barbero header */}
             <div className="bg-white/5 px-5 py-4 flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-green-500/20 border border-green-500/30 flex items-center justify-center font-bold text-green-400 text-lg">
                 {s.name.charAt(0).toUpperCase()}
@@ -87,8 +102,6 @@ export default function DisplayPage() {
                 <div className="text-xs text-gray-400">{s.appointments.length} appointments</div>
               </div>
             </div>
-
-            {/* Citas */}
             <div className="p-4 flex flex-col gap-3">
               {s.appointments.length === 0 ? (
                 <div className="text-center py-8 text-gray-600">
@@ -100,7 +113,7 @@ export default function DisplayPage() {
                   const aptTime = new Date(apt.date);
                   const isPast = aptTime < now;
                   const isNext = !isPast && s.appointments.findIndex((a: any) => new Date(a.date) >= now) === s.appointments.indexOf(apt);
-                return (
+                  return (
                     <div key={apt.id} className={`rounded-xl px-4 py-3 border transition ${
                       isNext ? "bg-green-500/10 border-green-500/30" :
                       isPast ? "bg-white/3 border-white/5 opacity-40" :
@@ -108,9 +121,7 @@ export default function DisplayPage() {
                     }`}>
                       <div className="flex justify-between items-start">
                         <div>
-                          <div className={`font-semibold ${isNext ? "text-green-400" : "text-white"}`}>
-                            {apt.clientName}
-                          </div>
+                          <div className={`font-semibold ${isNext ? "text-green-400" : "text-white"}`}>{apt.clientName}</div>
                           <div className="text-xs text-gray-400 mt-0.5">{apt.service?.name}</div>
                         </div>
                         <div className="text-right">
@@ -129,8 +140,6 @@ export default function DisplayPage() {
           </div>
         ))}
       </div>
-
-      {/* Footer */}
       <div className="mt-8 text-center text-gray-700 text-xs">
         Auto-refreshes every 30 seconds · Powered by Callendra
       </div>

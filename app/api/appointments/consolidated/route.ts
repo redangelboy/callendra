@@ -5,7 +5,7 @@ import { getMainBusinessIdForOwner, isOwnerMainBusinessSession } from "@/lib/mai
 import { effectiveServicePrice } from "@/lib/location-catalog";
 
 const adapter = new PrismaPg({
-  connectionString: "postgresql://callendra_user:callendra123@localhost:5432/callendra"
+  connectionString: process.env.DATABASE_URL!
 });
 const prisma = new PrismaClient({ adapter });
 
