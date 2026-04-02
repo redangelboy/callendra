@@ -35,15 +35,18 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
-    // Resolver fecha — si viene sin año, agregar el año actual
+    // Resolver fecha — forzar año actual siempre
     const currentYear = new Date().getFullYear();
     let resolvedDate = date;
-    // Si el date tiene formato MM-DD o MM/DD sin año, agregar año actual
+    // Formato MM-DD o MM/DD sin año
     if (/^\d{1,2}[\/\-]\d{1,2}$/.test(date)) {
-      resolvedDate = `${currentYear}-${date.replace(/\//g, "-").split("-").map((p: string) => p.padStart(2, "0")).join("-")}`;
-      // Convertir MM-DD a YYYY-MM-DD
       const parts = date.replace(/\//g, "-").split("-");
       resolvedDate = `${currentYear}-${parts[0].padStart(2, "0")}-${parts[1].padStart(2, "0")}`;
+    }
+    // Formato YYYY-MM-DD pero con año incorrecto — reemplazar con año actual
+    else if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      const parts = date.split("-");
+      resolvedDate = `${currentYear}-${parts[1]}-${parts[2]}`;
     }
 
     // Resolver hora — convertir "3pm" → "15:00", "10am" → "10:00"
@@ -113,9 +116,20 @@ export async function POST(req: NextRequest) {
       }
     });
 
-    // Emitir al display en tiempo real
-    if ((global as any).io) {
-      (global as any).io.to(`display-${business.slug}`).emit("new-appointment", appointment);
+    // Emitir al display en tiempo real via internal emit
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
+      await fetch(`${baseUrl}/api/internal/emit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          room: `display-${business.slug}`,
+          event: "new-appointment",
+          data: appointment,
+        }),
+      });
+    } catch (emitError) {
+      console.error("Emit error:", emitError);
     }
 
     return NextResponse.json({
