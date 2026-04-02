@@ -4,7 +4,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { effectiveServicePrice } from "@/lib/location-catalog";
 
 const adapter = new PrismaPg({
-  connectionString: "postgresql://reservify_user:reservify123@localhost:5432/reservify"
+  connectionString: "postgresql://callendra_user:callendra123@localhost:5432/callendra"
 });
 const prisma = new PrismaClient({ adapter });
 

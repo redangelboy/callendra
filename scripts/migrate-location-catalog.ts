@@ -8,7 +8,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 const adapter = new PrismaPg({
   connectionString:
     process.env.DATABASE_URL ??
-    "postgresql://reservify_user:reservify123@localhost:5432/reservify",
+    "postgresql://callendra_user:callendra123@localhost:5432/callendra",
 });
 const prisma = new PrismaClient({ adapter });
 

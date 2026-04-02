@@ -4,9 +4,10 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { resolveBusinessForBooking } from "@/lib/booking-business";
 import { loadLocationCatalog } from "@/lib/location-catalog";
 import { utcFromYmdAndTime } from "@/lib/business-timezone";
+import { sendBookingConfirmation } from "@/lib/email/send";
 
 const adapter = new PrismaPg({
-  connectionString: "postgresql://reservify_user:reservify123@localhost:5432/reservify"
+  connectionString: "postgresql://callendra_user:callendra123@localhost:5432/callendra"
 });
 const prisma = new PrismaClient({ adapter });
 
@@ -117,6 +118,31 @@ export async function POST(req: NextRequest) {
 
     if ((global as any).io) {
       (global as any).io.to(`display-${displayRoomSlug}`).emit("new-appointment", appointment);
+    }
+
+    // Send confirmation email
+    if (appointment.clientEmail) {
+      try {
+        const staffMember = await prisma.staff.findUnique({ where: { id: staffId } });
+        const serviceMember = await prisma.service.findUnique({ where: { id: serviceId } });
+        const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
+        const bookingPath = `${baseUrl}/en/book/${business.slug}`;
+
+        await sendBookingConfirmation({
+          clientEmail: appointment.clientEmail,
+          clientName: appointment.clientName,
+          businessName: business.name,
+          staffName: staffMember?.name || "Staff",
+          serviceName: serviceMember?.name || "Service",
+          date: date,
+          time: time,
+          bookingLink: bookingPath,
+          businessEmail: undefined,
+        });
+        console.log("Confirmation email sent to:", appointment.clientEmail);
+      } catch (emailError) {
+        console.error("Email send error:", emailError);
+      }
     }
 
     return NextResponse.json({ success: true, appointmentId: appointment.id });

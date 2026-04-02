@@ -7,11 +7,11 @@ export default defineConfig({
   migrate: {
     async adapter() {
       const { PrismaPg } = await import('@prisma/adapter-pg')
-      const connectionString = 'postgresql://reservify_user:reservify123@localhost:5432/reservify'
+      const connectionString = 'postgresql://callendra_user:callendra123@localhost:5432/callendra'
       return new PrismaPg({ connectionString })
     },
   },
   datasource: {
-    url: 'postgresql://reservify_user:reservify123@localhost:5432/reservify'
+    url: 'postgresql://callendra_user:callendra123@localhost:5432/callendra'
   }
 })
