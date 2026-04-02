@@ -9,7 +9,7 @@ export default function Home() {
 
       {/* Nav */}
       <nav className="flex justify-between items-center px-8 py-6 border-b border-white/10">
-        <span className="text-xl font-bold tracking-tight">Reservify</span>
+        <span className="text-xl font-bold tracking-tight">Callendra</span>
         <div className="flex items-center gap-4">
           <Link href="/" locale="es" className="text-xs border border-white/20 px-3 py-1 rounded-full hover:bg-white/10 transition">
             ES

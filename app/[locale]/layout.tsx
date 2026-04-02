@@ -4,7 +4,7 @@ import { getMessages } from "next-intl/server";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Reservify",
+  title: "Callendra",
   description: "The booking system for your business",
 };
 

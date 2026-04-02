@@ -25,7 +25,7 @@ export async function sendBookingConfirmation({
 }) {
   try {
     await resend.emails.send({
-      from: "Reservify <callendra@voxproai.com>",
+      from: "Callendra <callendra@voxproai.com>",
       replyTo: businessEmail || undefined,
       to: clientEmail,
       subject: `Appointment confirmed at ${businessName}`,
@@ -73,7 +73,7 @@ export async function sendBookingConfirmation({
 
             <hr style="border: none; border-top: 1px solid #eee; margin: 32px 0;">
             <p style="color: #999; font-size: 12px; text-align: center;">
-              Powered by Reservify · This is an automated confirmation email
+              Powered by Callendra · This is an automated confirmation email
             </p>
           </div>
         </body>

@@ -191,7 +191,7 @@ export default function DashboardPage() {
     <main className="min-h-screen bg-black text-white">
 
       <nav className="border-b border-white/10 px-8 py-4 flex justify-between items-center">
-        <span className="font-bold text-lg">Reservify</span>
+        <span className="font-bold text-lg">Callendra</span>
         <div className="flex items-center gap-4">
           <div className="relative" ref={locationMenuRef}>
             <button

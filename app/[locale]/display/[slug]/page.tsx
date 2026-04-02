@@ -132,7 +132,7 @@ export default function DisplayPage() {
 
       {/* Footer */}
       <div className="mt-8 text-center text-gray-700 text-xs">
-        Auto-refreshes every 30 seconds · Powered by Reservify
+        Auto-refreshes every 30 seconds · Powered by Callendra
       </div>
     </main>
   );

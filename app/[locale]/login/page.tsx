@@ -29,7 +29,7 @@ export default function LoginPage() {
     <main className="min-h-screen bg-black text-white flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <a href="/" className="text-2xl font-bold tracking-tight">Reservify</a>
+          <a href="/" className="text-2xl font-bold tracking-tight">Callendra</a>
           <p className="text-gray-400 text-sm mt-2">Sign in to your account</p>
         </div>
         <div className="border border-white/10 rounded-2xl p-8 flex flex-col gap-4">

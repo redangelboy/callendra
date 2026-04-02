@@ -43,7 +43,7 @@ export default function RegisterPage() {
 
         {/* Logo */}
         <div className="text-center mb-8">
-          <a href="/" className="text-2xl font-bold tracking-tight">Reservify</a>
+          <a href="/" className="text-2xl font-bold tracking-tight">Callendra</a>
           <p className="text-gray-400 text-sm mt-2">Create your account — it's free for 14 days</p>
         </div>
 
