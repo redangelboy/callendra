@@ -4,8 +4,9 @@ import { bookingPathForBusiness } from "@/lib/booking-path";
 
 export default function ProfilePage() {
   const [form, setForm] = useState({
-    name: "", phone: "", address: "", primaryColor: "#000000", secondaryColor: "#ffffff"
+    name: "", phone: "", address: "", primaryColor: "#000000", secondaryColor: "#ffffff", logo: ""
   });
+  const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
@@ -23,6 +24,7 @@ export default function ProfilePage() {
             address: data.address || "",
             primaryColor: data.primaryColor || "#000000",
             secondaryColor: data.secondaryColor || "#ffffff",
+            logo: data.logo || "",
           });
           setSlug(data.slug || "");
           const list = Array.isArray(locs) ? locs : [];
@@ -36,6 +38,24 @@ export default function ProfilePage() {
         }
       });
   }, []);
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setForm((prev) => ({ ...prev, logo: data.url }));
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const handleSave = async () => {
     setLoading(true);
@@ -74,6 +94,23 @@ export default function ProfilePage() {
           <a href={bookingPath ? `/en${bookingPath}` : `/en/book/${slug}`} target="_blank" className="text-sm text-green-400 hover:text-green-300 transition font-mono">
             {bookingPath || `/book/${slug}`}
           </a>
+        </div>
+        <div className="border border-white/10 rounded-2xl p-6 flex flex-col gap-4 mb-8">
+          <h2 className="font-semibold">Logo</h2>
+          <div className="flex items-center gap-6">
+            {form.logo ? (
+              <img src={form.logo} alt="Logo" className="w-20 h-20 rounded-2xl object-contain border border-white/10" />
+            ) : (
+              <div className="w-20 h-20 rounded-2xl border border-white/10 bg-white/5 flex items-center justify-center text-gray-500 text-xs">No logo</div>
+            )}
+            <div className="flex flex-col gap-2">
+              <label className="cursor-pointer bg-white/10 hover:bg-white/20 transition px-4 py-2 rounded-xl text-sm font-medium">
+                {uploading ? "Uploading..." : "Upload logo"}
+                <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} disabled={uploading} />
+              </label>
+              <p className="text-xs text-gray-500">PNG, JPG up to 5MB</p>
+            </div>
+          </div>
         </div>
         <div className="border border-white/10 rounded-2xl p-6 flex flex-col gap-4 mb-8">
           <h2 className="font-semibold">Basic information</h2>

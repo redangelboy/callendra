@@ -68,7 +68,7 @@ export default function DisplayPage() {
   const byStaff = staff.map((s: any) => ({
     ...s,
     appointments: appointments
-      .filter((a: any) => a.staffId === s.id)
+      .filter((a: any) => a.staffId === s.id && new Date(a.date) >= now)
       .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime()),
   }));
 
@@ -81,9 +81,17 @@ export default function DisplayPage() {
   return (
     <main className="min-h-screen bg-gray-950 text-white p-6">
       <div className="flex justify-between items-center mb-8 border-b border-white/10 pb-6">
-        <div>
-          <h1 className="text-4xl font-bold tracking-tight">{business.name}</h1>
-          <p className="text-gray-400 mt-1">{DAYS[now.getDay()]}, {now.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</p>
+        <div className="flex items-center gap-4">
+          {business.logo && (
+            <img src={business.logo} alt="Logo" className="w-32 h-32 rounded-full object-contain border-2 border-white/20" />
+          )}
+          <div>
+            <h1 className="text-4xl font-bold tracking-tight">
+              {business.parentSlug ? `${business.parentName || business.name}` : business.name}
+              {business.parentSlug && business.name ? ` - ${business.name}` : ""}
+            </h1>
+            <p className="text-gray-400 mt-1">{DAYS[now.getDay()]}, {now.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</p>
+          </div>
         </div>
         <div className="text-right">
           <div className="text-5xl font-mono font-bold text-green-400">{formatClock(now)}</div>

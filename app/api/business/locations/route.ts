@@ -29,7 +29,7 @@ export async function PATCH(req: NextRequest) {
     const session = req.cookies.get("session")?.value;
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const { ownerId } = JSON.parse(session);
-    const { id, name, phone, address } = await req.json();
+    const { id, name, phone, address, retellPhoneNumber } = await req.json();
 
     const business = await prisma.business.findFirst({
       where: { id, ownerId }
@@ -38,7 +38,7 @@ export async function PATCH(req: NextRequest) {
 
     const updated = await prisma.business.update({
       where: { id },
-      data: { name, phone, address }
+      data: { name, phone, address, retellPhoneNumber: retellPhoneNumber || null }
     });
 
     return NextResponse.json(updated);

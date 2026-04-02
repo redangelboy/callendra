@@ -76,7 +76,7 @@ export default function LocationsPage() {
       const res = await fetch("/api/business/locations", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, name: editing.name, phone: editing.phone, address: editing.address }),
+        body: JSON.stringify({ id, name: editing.name, phone: editing.phone, address: editing.address, retellPhoneNumber: editing.retellPhoneNumber }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
@@ -170,17 +170,33 @@ export default function LocationsPage() {
               <div key={loc.id} className="border border-white/10 rounded-2xl p-6">
                 {editing?.id === loc.id ? (
                   <div className="flex flex-col gap-3">
-                    <input type="text" value={editing.name}
-                      onChange={(e) => setEditing({ ...editing, name: e.target.value })}
-                      className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/30 transition" />
-                    <input type="tel" value={editing.phone || ""}
-                      onChange={(e) => setEditing({ ...editing, phone: e.target.value })}
-                      placeholder="Phone"
-                      className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/30 transition" />
-                    <input type="text" value={editing.address || ""}
-                      onChange={(e) => setEditing({ ...editing, address: e.target.value })}
-                      placeholder="Address"
-                      className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/30 transition" />
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs text-gray-400">Location name</label>
+                      <input type="text" value={editing.name}
+                        onChange={(e) => setEditing({ ...editing, name: e.target.value })}
+                        className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/30 transition" />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs text-gray-400">Phone</label>
+                      <input type="tel" value={editing.phone || ""}
+                        onChange={(e) => setEditing({ ...editing, phone: e.target.value })}
+                        placeholder="+1234567890"
+                        className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/30 transition" />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs text-gray-400">Address</label>
+                      <input type="text" value={editing.address || ""}
+                        onChange={(e) => setEditing({ ...editing, address: e.target.value })}
+                        placeholder="123 Main St, City, TX"
+                        className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/30 transition" />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs text-gray-400">🤖 AI Agent Phone Number (Retell)</label>
+                      <input type="text" value={editing.retellPhoneNumber || ""}
+                        onChange={(e) => setEditing({ ...editing, retellPhoneNumber: e.target.value })}
+                        placeholder="+19453072113"
+                        className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/30 transition" />
+                    </div>
                     <div className="flex gap-3">
                       <button onClick={() => handleUpdate(loc.id)} disabled={loading}
                         className="flex-1 bg-white text-black py-2 rounded-xl text-sm font-semibold">
@@ -198,6 +214,7 @@ export default function LocationsPage() {
                       <div className="font-semibold text-lg">{loc.name}</div>
                       {loc.phone && <div className="text-sm text-gray-400 mt-1">📞 {loc.phone}</div>}
                       {loc.address && <div className="text-sm text-gray-400 mt-1">📍 {loc.address}</div>}
+                      {loc.retellPhoneNumber && <div className="text-sm text-gray-400 mt-1">🤖 AI Agent: {loc.retellPhoneNumber}</div>}
                       <div className="text-xs text-gray-600 mt-2 font-mono">{path}</div>
                     </div>
                     <div className="flex gap-2">

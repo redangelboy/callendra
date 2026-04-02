@@ -21,7 +21,21 @@ export async function GET(req: NextRequest) {
     if (!row) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
     const { staff } = await loadLocationCatalog(prisma, row.id);
-    const business = { ...row, staff };
+
+    // Si es sucursal, obtener nombre y logo del main
+    let parentName = null;
+    let logo = row.logo;
+    if (row.parentSlug) {
+      const main = await prisma.business.findFirst({
+        where: { slug: row.parentSlug }
+      });
+      if (main) {
+        parentName = main.name;
+        logo = logo || main.logo; // usar logo del main si la sucursal no tiene
+      }
+    }
+
+    const business = { ...row, staff, parentName, logo };
 
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
