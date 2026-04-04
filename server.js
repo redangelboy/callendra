@@ -4,7 +4,7 @@ const next = require("next");
 const { Server } = require("socket.io");
 
 const dev = process.env.NODE_ENV !== "production";
-const app = next({ dev });
+const app = next({ dev, hostname: "localhost", port: parseInt(process.env.PORT || "3000") });
 const handle = app.getRequestHandler();
 
 app.prepare().then(() => {
@@ -50,7 +50,7 @@ app.prepare().then(() => {
     });
   });
 
-  httpServer.listen(3000, () => {
-    console.log("> Ready on http://localhost:3000");
+  httpServer.listen(parseInt(process.env.PORT || "3000"), () => {
+    console.log(`> Ready on http://localhost:${process.env.PORT || 3000}`);
   });
 });

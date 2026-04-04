@@ -4,8 +4,16 @@ import { bookingPathForBusiness } from "@/lib/booking-path";
 
 export default function ProfilePage() {
   const [form, setForm] = useState({
-    name: "", phone: "", address: "", primaryColor: "#000000", secondaryColor: "#ffffff", logo: "", retellPhoneNumber: ""
+    name: "",
+    phone: "",
+    notificationPhone: "",
+    address: "",
+    primaryColor: "#000000",
+    secondaryColor: "#ffffff",
+    logo: "",
+    retellPhoneNumber: "",
   });
+  const [showNotificationPhone, setShowNotificationPhone] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -14,36 +22,89 @@ export default function ProfilePage() {
   const [isMainBusiness, setIsMainBusiness] = useState(false);
   const [hasLocations, setHasLocations] = useState(false);
   const [bookingPath, setBookingPath] = useState("");
+  const [mainLocationLinks, setMainLocationLinks] = useState<{ id: string; name: string; path: string }[]>([]);
 
   useEffect(() => {
-    Promise.all([fetch("/api/business"), fetch("/api/business/locations")])
-      .then(([a, b]) => Promise.all([a.json(), b.json()]))
-      .then(([data, locs]) => {
-        if (data.id) {
-          setForm({
-            name: data.name || "",
-            phone: data.phone || "",
-            address: data.address || "",
-            primaryColor: data.primaryColor || "#000000",
-            secondaryColor: data.secondaryColor || "#ffffff",
-            logo: data.logo || "",
-            retellPhoneNumber: data.retellPhoneNumber || "",
+    let cancelled = false;
+    (async () => {
+      const a = await fetch("/api/business");
+      const data = await a.json();
+      if (!data.id || cancelled) return;
+
+      const hasNotif = "notificationPhone" in data;
+      setShowNotificationPhone(hasNotif);
+      setForm({
+        name: data.name || "",
+        phone: data.phone || "",
+        notificationPhone: hasNotif ? data.notificationPhone || "" : "",
+        address: data.address || "",
+        primaryColor: data.primaryColor || "#000000",
+        secondaryColor: data.secondaryColor || "#ffffff",
+        logo: data.logo || "",
+        retellPhoneNumber: data.retellPhoneNumber || "",
+      });
+      setSlug(data.slug || "");
+
+      const isMain = !!data.isMainBusiness;
+      setIsMainBusiness(isMain);
+
+      const locRes = await fetch("/api/business/locations");
+      const locs = await locRes.json();
+      if (cancelled) return;
+      const list = Array.isArray(locs) ? locs : [];
+      const locationCount = list.filter((l: any) => l.parentSlug === data.slug).length;
+      const hasBranchLocations = locationCount > 0;
+      setHasLocations(hasBranchLocations);
+
+      if (!isMain) {
+        const countForParent = list.filter(
+          (l: any) => (l.parentSlug ?? l.slug) === (data.parentSlug ?? data.slug)
+        ).length;
+        setMainLocationLinks([]);
+        setBookingPath(
+          bookingPathForBusiness(data.parentSlug, data.slug, data.locationSlug, countForParent)
+        );
+        return;
+      }
+
+      const brandLocs = list.filter(
+        (l: any) => (l.parentSlug ?? l.slug) === data.slug
+      );
+      const countForParent = brandLocs.length;
+
+      if (hasBranchLocations) {
+        const linksOnly = brandLocs
+          .filter((l: any) => {
+            const ls = (l.locationSlug ?? "").trim();
+            return ls !== "" && ls !== "main";
+          })
+          .map((l: any) => {
+            const parentSlug = l.parentSlug ?? l.slug;
+            const locationSlug = (l.locationSlug ?? "").trim() || "main";
+            return {
+              id: l.id,
+              name: l.name || "Location",
+              path: `/book/${parentSlug}/${locationSlug}`,
+            };
           });
-          setSlug(data.slug || "");
-          const list = Array.isArray(locs) ? locs : [];
-          const locationCount = list.filter((l: any) => l.parentSlug === data.slug).length;
-          setHasLocations(locationCount > 0);
-          setHasLocations(locationCount > 0);
-          setIsMainBusiness(!data.parentSlug);
-          const parent = data.parentSlug ?? data.slug;
-          const countForParent = list.filter(
-            (l: any) => (l.parentSlug ?? l.slug) === parent
-          ).length;
+        setMainLocationLinks(linksOnly);
+        if (linksOnly.length === 0) {
           setBookingPath(
             bookingPathForBusiness(data.parentSlug, data.slug, data.locationSlug, countForParent)
           );
+        } else {
+          setBookingPath("");
         }
-      });
+      } else {
+        setMainLocationLinks([]);
+        setBookingPath(
+          bookingPathForBusiness(data.parentSlug, data.slug, data.locationSlug, countForParent)
+        );
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -93,14 +154,48 @@ export default function ProfilePage() {
       <div className="max-w-2xl mx-auto px-8 py-10">
         <h1 className="text-2xl font-bold mb-2">Business Profile</h1>
         <p className="text-gray-400 text-sm mb-8">Update your business information.</p>
-        <div className="border border-white/10 rounded-2xl p-5 mb-8 flex justify-between items-center">
-          <div>
-            <div className="text-sm font-medium">Your booking link</div>
-            <div className="text-xs text-gray-400 mt-1">Share this with your clients</div>
-          </div>
-          <a href={bookingPath ? `/en${bookingPath}` : `/en/book/${slug}`} target="_blank" className="text-sm text-green-400 hover:text-green-300 transition font-mono">
-            {bookingPath || `/book/${slug}`}
-          </a>
+        <div className="border border-white/10 rounded-2xl p-5 mb-8">
+          {isMainBusiness && hasLocations && mainLocationLinks.length > 0 ? (
+            <>
+              <div className="mb-4">
+                <div className="text-sm font-medium">Your booking links</div>
+                <div className="text-xs text-gray-400 mt-1">Share these with your clients</div>
+              </div>
+              <ul className="flex flex-col divide-y divide-white/10">
+                {mainLocationLinks.map((row) => (
+                  <li
+                    key={row.id}
+                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-4 py-3 first:pt-0 last:pb-0"
+                  >
+                    <span className="text-sm text-white">{row.name}</span>
+                    <a
+                      href={`/en${row.path}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-green-400 hover:text-green-300 transition font-mono break-all sm:text-right"
+                    >
+                      {row.path}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <div className="text-sm font-medium">Your booking link</div>
+                <div className="text-xs text-gray-400 mt-1">Share this with your clients</div>
+              </div>
+              <a
+                href={bookingPath ? `/en${bookingPath}` : `/en/book/${slug}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-green-400 hover:text-green-300 transition font-mono break-all sm:text-right"
+              >
+                {bookingPath || `/book/${slug}`}
+              </a>
+            </div>
+          )}
         </div>
         <div className="border border-white/10 rounded-2xl p-6 flex flex-col gap-4 mb-8">
           <h2 className="font-semibold">Logo</h2>
@@ -127,10 +222,23 @@ export default function ProfilePage() {
               className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/30 transition" />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-sm text-gray-400">Phone</label>
+            <label className="text-sm text-gray-400">Business phone</label>
             <input type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })}
               className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/30 transition" />
           </div>
+          {showNotificationPhone && (
+            <div className="flex flex-col gap-1">
+              <label className="text-sm text-gray-400">Notification phone (optional)</label>
+              <input
+                type="tel"
+                value={form.notificationPhone}
+                onChange={(e) => setForm({ ...form, notificationPhone: e.target.value })}
+                placeholder="+1 (555) 000-0000"
+                className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/30 transition"
+              />
+              <p className="text-xs text-gray-500">SMS for cancel requests and alerts. Falls back to business phone if empty.</p>
+            </div>
+          )}
           <div className="flex flex-col gap-1">
             <label className="text-sm text-gray-400">Address</label>
             <input type="text" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })}
@@ -139,7 +247,7 @@ export default function ProfilePage() {
           </div>
           {(!isMainBusiness || !hasLocations) && (
             <div className="flex flex-col gap-1">
-              <label className="text-sm text-gray-400">Retell AI Phone Number</label>
+              <label className="text-sm text-gray-400">AI Agent Phone Number</label>
               <input type="tel" value={form.retellPhoneNumber} onChange={(e) => setForm({ ...form, retellPhoneNumber: e.target.value })}
                 placeholder="+19453072113"
                 className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/30 transition" />

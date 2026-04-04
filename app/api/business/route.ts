@@ -28,7 +28,19 @@ export async function GET(req: NextRequest) {
     const ownerId = ownerIdFromSession ?? business.ownerId;
     const mainId = await getMainBusinessIdForOwner(prisma, ownerId);
     const isMainBusiness = mainId != null && business.id === mainId;
-    return NextResponse.json({ ...business, isMainBusiness });
+    let notificationPhone: string | null = null;
+    if (ownerIdFromSession) {
+      const o = await prisma.owner.findUnique({
+        where: { id: ownerIdFromSession },
+        select: { phone: true },
+      });
+      notificationPhone = o?.phone ?? null;
+    }
+    return NextResponse.json({
+      ...business,
+      isMainBusiness,
+      ...(ownerIdFromSession ? { notificationPhone } : {}),
+    });
   } catch (error) {
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
@@ -38,12 +50,24 @@ export async function PATCH(req: NextRequest) {
   try {
     const session = req.cookies.get("session")?.value;
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const { businessId } = JSON.parse(session);
-    const { name, phone, address, primaryColor, secondaryColor, logo, retellPhoneNumber } = await req.json();
+    const parsed = JSON.parse(session);
+    const { businessId, ownerId } = parsed as { businessId: string; ownerId?: string };
+    const body = await req.json();
+    const { name, phone, address, primaryColor, secondaryColor, logo, retellPhoneNumber, notificationPhone } = body;
     const business = await prisma.business.update({
       where: { id: businessId },
       data: { name, phone, address, primaryColor, secondaryColor, logo, retellPhoneNumber: retellPhoneNumber || null },
     });
+    if (ownerId && "notificationPhone" in body) {
+      const current = await prisma.business.findUnique({ where: { id: businessId }, select: { ownerId: true } });
+      if (current?.ownerId === ownerId) {
+        const phoneVal =
+          notificationPhone != null && String(notificationPhone).trim()
+            ? String(notificationPhone).trim()
+            : null;
+        await prisma.owner.update({ where: { id: ownerId }, data: { phone: phoneVal } });
+      }
+    }
     return NextResponse.json(business);
   } catch (error) {
     return NextResponse.json({ error: "Server error" }, { status: 500 });

@@ -106,7 +106,7 @@ export default function BookPage() {
     try {
       let recaptchaToken = "";
       if (executeRecaptcha) {
-        recaptchaToken = await executeRecaptcha("book_appointment");
+        try { recaptchaToken = await executeRecaptcha("book_appointment"); } catch {}
       }
       const res = await fetch("/api/book", {
         method: "POST",

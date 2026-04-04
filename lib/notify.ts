@@ -1,10 +1,13 @@
 import { Resend } from "resend";
+import { sendSMS } from "./sms";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function notifyCancelRequest({
   ownerEmail,
   ownerName,
+  ownerPhone,
+  businessPhone,
   businessName,
   clientName,
   serviceName,
@@ -14,6 +17,8 @@ export async function notifyCancelRequest({
 }: {
   ownerEmail: string;
   ownerName: string;
+  ownerPhone?: string | null;
+  businessPhone?: string | null;
   businessName: string;
   clientName: string;
   serviceName: string;
@@ -27,7 +32,8 @@ export async function notifyCancelRequest({
     timeZone: "America/Chicago",
   });
 
-  const result = await resend.emails.send({
+  // Email
+  await resend.emails.send({
     from: "Callendra <callendra@voxproai.com>",
     to: ownerEmail,
     subject: `⚠️ Cancel request — ${clientName} at ${businessName}`,
@@ -57,4 +63,18 @@ export async function notifyCancelRequest({
       </div>
     `,
   });
+
+  const smsTo =
+    (ownerPhone && String(ownerPhone).trim()) ||
+    (businessPhone && String(businessPhone).trim()) ||
+    undefined;
+
+  // SMS
+  console.log("SMS DEBUG:", { smsTo, TWILIO_SID: process.env.TWILIO_ACCOUNT_SID?.slice(0,5) });
+  if (smsTo) {
+    await sendSMS(
+      smsTo,
+      `⚠️ Callendra: Cancel request at ${businessName}\nClient: ${clientName} | ${serviceName}\nBarber: ${staffName}\nDate: ${dateStr}\nReason: ${reason}\nReview: https://app.callendra.com/en/dashboard`
+    );
+  }
 }

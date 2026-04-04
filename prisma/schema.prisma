@@ -130,6 +130,7 @@ model Owner {
   email     String   @unique
   password  String
   name      String
+  phone     String?
   createdAt DateTime @default(now())
 
   businesses Business[]

@@ -27,9 +27,16 @@ export async function POST(req: NextRequest) {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    const ownerPhone = typeof phone === "string" && phone.trim() ? phone.trim() : null;
+
     const result = await prisma.$transaction(async (tx) => {
       const owner = await tx.owner.create({
-        data: { email, password: hashedPassword, name: ownerName },
+        data: {
+          email,
+          password: hashedPassword,
+          name: ownerName,
+          phone: ownerPhone,
+        },
       });
       const business = await tx.business.create({
         data: {
@@ -37,7 +44,7 @@ export async function POST(req: NextRequest) {
           slug: finalSlug,
           parentSlug: finalSlug,
           locationSlug: "",
-          phone: phone || null,
+          phone: ownerPhone,
           plan: "starter",
           active: true,
           ownerId: owner.id,

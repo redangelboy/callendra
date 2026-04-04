@@ -85,6 +85,8 @@ export async function PATCH(req: NextRequest) {
           await notifyCancelRequest({
             ownerEmail: owner.email,
             ownerName: owner.name,
+            ownerPhone: owner.phone,
+            businessPhone: biz.phone,
             businessName: biz.name,
             clientName: appointment.clientName,
             serviceName: (appointment.service as any)?.name || "Service",

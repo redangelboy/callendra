@@ -73,7 +73,7 @@ export default function RegisterPage() {
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-sm text-gray-400">Phone</label>
+            <label className="text-sm text-gray-400">Phone (optional)</label>
             <input
               type="tel"
               placeholder="+1 (555) 000-0000"

@@ -7,6 +7,14 @@ function countPeersForParent(locations: any[], loc: any) {
   return locations.filter((l) => (l.parentSlug ?? l.slug) === parent).length;
 }
 
+function normalizeLocationSlug(raw: string) {
+  return raw
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9-]/g, "");
+}
+
 export default function LocationsPage() {
   const [locations, setLocations] = useState<any[]>([]);
   const [editing, setEditing] = useState<any>(null);
@@ -17,6 +25,8 @@ export default function LocationsPage() {
   const [parentSlug, setParentSlug] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [originalSlugSaved, setOriginalSlugSaved] = useState("");
+  const [slugEditedByUser, setSlugEditedByUser] = useState(false);
 
   const fetchLocations = async () => {
     const res = await fetch("/api/business/locations");
@@ -72,15 +82,31 @@ export default function LocationsPage() {
 
   const handleUpdate = async (id: string) => {
     setLoading(true);
+    setError("");
     try {
+      const normalizedOrig = normalizeLocationSlug(originalSlugSaved);
+      const normalizedCur = normalizeLocationSlug(editing.locationSlug ?? "");
+      const locationSlugUpdate =
+        slugEditedByUser && normalizedCur !== normalizedOrig;
+      if (locationSlugUpdate && !normalizedCur) {
+        throw new Error("URL slug must contain letters or numbers");
+      }
       const res = await fetch("/api/business/locations", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, name: editing.name, phone: editing.phone, address: editing.address, retellPhoneNumber: editing.retellPhoneNumber }),
+        body: JSON.stringify({
+          id,
+          name: editing.name,
+          phone: editing.phone,
+          address: editing.address,
+          retellPhoneNumber: editing.retellPhoneNumber,
+          ...(locationSlugUpdate ? { locationSlug: editing.locationSlug, locationSlugUpdate: true } : {}),
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setEditing(null);
+      setSlugEditedByUser(false);
       fetchLocations();
     } catch (err: any) {
       setError(err.message);
@@ -177,6 +203,24 @@ export default function LocationsPage() {
                         className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/30 transition" />
                     </div>
                     <div className="flex flex-col gap-1">
+                      <label className="text-xs text-gray-400">URL slug (location segment)</label>
+                      <input
+                        type="text"
+                        value={editing.locationSlug ?? ""}
+                        onChange={(e) => {
+                          setSlugEditedByUser(true);
+                          setEditing({ ...editing, locationSlug: e.target.value });
+                        }}
+                        placeholder="e.g. plano"
+                        className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/30 transition font-mono"
+                      />
+                      {normalizeLocationSlug(editing.locationSlug ?? "") !== normalizeLocationSlug(originalSlugSaved) && (
+                        <p className="text-xs text-amber-400/90">
+                          Changing the URL slug will break existing booking links.
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex flex-col gap-1">
                       <label className="text-xs text-gray-400">Phone</label>
                       <input type="tel" value={editing.phone || ""}
                         onChange={(e) => setEditing({ ...editing, phone: e.target.value })}
@@ -202,7 +246,10 @@ export default function LocationsPage() {
                         className="flex-1 bg-white text-black py-2 rounded-xl text-sm font-semibold">
                         Save
                       </button>
-                      <button onClick={() => setEditing(null)}
+                      <button onClick={() => {
+                        setEditing(null);
+                        setSlugEditedByUser(false);
+                      }}
                         className="flex-1 border border-white/10 py-2 rounded-xl text-sm">
                         Cancel
                       </button>
@@ -218,7 +265,11 @@ export default function LocationsPage() {
                       <div className="text-xs text-gray-600 mt-2 font-mono">{path}</div>
                     </div>
                     <div className="flex gap-2">
-                      <button onClick={() => setEditing(loc)}
+                      <button onClick={() => {
+                        setOriginalSlugSaved(loc.locationSlug ?? "");
+                        setSlugEditedByUser(false);
+                        setEditing({ ...loc, locationSlug: loc.locationSlug ?? "" });
+                      }}
                         className="text-sm text-gray-400 hover:text-white border border-white/10 px-3 py-1 rounded-full transition">
                         Edit
                       </button>
