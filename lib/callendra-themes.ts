@@ -230,7 +230,7 @@ export function isValidThemeId(id: string): id is CallendraThemeId {
   return id in CALLENDRA_THEMES;
 }
 
-export const DEFAULT_THEME_ID: CallendraThemeId = "clearSky";
+export const DEFAULT_THEME_ID: CallendraThemeId = "appleDark";
 
 /** Genera el bloque `:root { ... }` para inyectar en `<style>` */
 export function buildThemeStyleInnerHTML(preset: string): string {
