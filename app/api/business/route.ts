@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -22,9 +23,15 @@ export async function GET(req: NextRequest) {
   try {
     const session = req.cookies.get("session")?.value;
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const parsed = JSON.parse(session);
-    const { businessId } = parsed;
-    const ownerIdFromSession = parsed.ownerId as string | undefined;
+    const parsed = JSON.parse(session) as { businessId?: string; ownerId?: string };
+    const businessId = parsed.businessId;
+    const ownerIdFromSession = parsed.ownerId;
+    if (!businessId || typeof businessId !== "string") {
+      return NextResponse.json(
+        { error: "Invalid session: missing businessId. Sign out and sign in again." },
+        { status: 401 }
+      );
+    }
     const business = await prisma.business.findUnique({ where: { id: businessId } });
     if (!business) return NextResponse.json({ error: "Not found" }, { status: 404 });
     const ownerId = ownerIdFromSession ?? business.ownerId;
@@ -52,6 +59,48 @@ function strOrNull(v: unknown): string | null {
   if (v == null) return null;
   const s = String(v).trim();
   return s === "" ? null : s;
+}
+
+export async function PUT(req: NextRequest) {
+  try {
+    const session = req.cookies.get("session")?.value;
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const parsed = JSON.parse(session) as { businessId?: string; ownerId?: string };
+    const { businessId, ownerId } = parsed;
+    if (!ownerId || typeof ownerId !== "string") {
+      return NextResponse.json({ error: "Only business owners can manage the display token" }, { status: 403 });
+    }
+    if (!businessId || typeof businessId !== "string") {
+      return NextResponse.json(
+        { error: "Invalid session: missing businessId. Sign out and sign in again." },
+        { status: 401 }
+      );
+    }
+    const body = await req.json();
+    if (body?.action !== "regenerateDisplayToken") {
+      return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+    }
+    const row = await prisma.business.findUnique({ where: { id: businessId } });
+    if (!row || row.ownerId !== ownerId) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    const displayToken = randomBytes(32).toString("hex");
+    await prisma.business.update({
+      where: { id: businessId },
+      data: { displayToken },
+    });
+    return NextResponse.json({ displayToken });
+  } catch (error) {
+    console.error("PUT /api/business", error);
+    const message = error instanceof Error ? error.message : "Server error";
+    const expose =
+      process.env.NODE_ENV === "development" || process.env.VERCEL_ENV === "preview";
+    return NextResponse.json(
+      { error: expose ? message : "Server error" },
+      { status: 500 }
+    );
+  }
 }
 
 export async function PATCH(req: NextRequest) {

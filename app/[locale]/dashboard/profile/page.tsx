@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
+import { useParams } from "next/navigation";
 import { bookingPathForBusiness } from "@/lib/booking-path";
 import {
   CALLENDRA_THEMES,
@@ -14,6 +15,9 @@ import {
 } from "@/lib/callendra-themes";
 
 export default function ProfilePage() {
+  const params = useParams();
+  const locale = typeof params?.locale === "string" ? params.locale : "en";
+
   const [form, setForm] = useState({
     name: "",
     phone: "",
@@ -34,13 +38,41 @@ export default function ProfilePage() {
   const [hasLocations, setHasLocations] = useState(false);
   const [bookingPath, setBookingPath] = useState("");
   const [mainLocationLinks, setMainLocationLinks] = useState<{ id: string; name: string; path: string }[]>([]);
+  const [displayToken, setDisplayToken] = useState<string | null>(null);
+  const [isOwner, setIsOwner] = useState(false);
+  const [displayTokenLoading, setDisplayTokenLoading] = useState(false);
+  const [displayTokenError, setDisplayTokenError] = useState("");
+
+  const displayUrl = useMemo(() => {
+    if (typeof window === "undefined" || !slug || !displayToken) return "";
+    const origin = (process.env.NEXT_PUBLIC_URL || window.location.origin).replace(/\/$/, "");
+    return `${origin}/${locale}/display/${encodeURIComponent(slug)}?token=${encodeURIComponent(displayToken)}`;
+  }, [slug, displayToken, locale]);
+
+  const maskedToken =
+    displayToken && displayToken.length > 8
+      ? `••••••${displayToken.slice(-8)}`
+      : displayToken
+        ? "••••••••"
+        : null;
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("displayToken") === "required") {
+      setDisplayTokenError("Generate your display token first (Display screen section below).");
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const a = await fetch("/api/business");
+      const [a, sessionRes] = await Promise.all([fetch("/api/business"), fetch("/api/auth/session")]);
+      const sessionData = await sessionRes.json();
+      if (!cancelled) setIsOwner(!!sessionData.ownerId);
+
       const data = await a.json();
       if (!data.id || cancelled) return;
+      setDisplayToken(typeof data.displayToken === "string" ? data.displayToken : null);
 
       const hasNotif = "notificationPhone" in data;
       setShowNotificationPhone(hasNotif);
@@ -158,6 +190,34 @@ export default function ProfilePage() {
     }
   };
 
+  const handleRegenerateDisplayToken = async () => {
+    setDisplayTokenLoading(true);
+    setDisplayTokenError("");
+    try {
+      const res = await fetch("/api/business", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "regenerateDisplayToken" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not update token");
+      if (typeof data.displayToken === "string") setDisplayToken(data.displayToken);
+    } catch (err: unknown) {
+      setDisplayTokenError(err instanceof Error ? err.message : "Error");
+    } finally {
+      setDisplayTokenLoading(false);
+    }
+  };
+
+  const copyDisplayUrl = async () => {
+    if (!displayUrl) return;
+    try {
+      await navigator.clipboard.writeText(displayUrl);
+    } catch {
+      setDisplayTokenError("Could not copy to clipboard");
+    }
+  };
+
   const handleSave = async () => {
     setLoading(true);
     setError("");
@@ -230,6 +290,51 @@ export default function ProfilePage() {
             </div>
           )}
         </div>
+
+        {isOwner && (
+          <div className="border border-[var(--callendra-border)] rounded-2xl p-6 flex flex-col gap-4 mb-8">
+            <h2 className="font-semibold">Display screen</h2>
+            <p className="text-sm text-[var(--callendra-text-secondary)]">
+              TV and waiting-room displays use a secret link. Only people with the full URL can open your display.
+            </p>
+            {displayTokenError && (
+              <p className="text-sm text-amber-400/90">{displayTokenError}</p>
+            )}
+            {!displayToken ? (
+              <p className="text-sm text-[var(--callendra-text-secondary)]">No token generated yet.</p>
+            ) : (
+              <>
+                <div>
+                  <div className="text-xs text-[var(--callendra-text-secondary)] mb-1">Current token (masked)</div>
+                  <div className="font-mono text-sm text-[var(--callendra-text-primary)]">{maskedToken}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-[var(--callendra-text-secondary)] mb-1">Full display URL</div>
+                  <div className="font-mono text-xs break-all text-[var(--callendra-accent)]">{displayUrl}</div>
+                </div>
+              </>
+            )}
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={displayTokenLoading}
+                onClick={handleRegenerateDisplayToken}
+                className="ui-btn-primary px-4 py-2 rounded-xl text-sm font-medium disabled:opacity-50"
+              >
+                {displayTokenLoading ? "Saving…" : displayToken ? "Regenerate token" : "Generate token"}
+              </button>
+              <button
+                type="button"
+                disabled={!displayUrl}
+                onClick={copyDisplayUrl}
+                className="border border-[var(--callendra-border)] px-4 py-2 rounded-xl text-sm font-medium hover:opacity-90 transition disabled:opacity-40"
+              >
+                Copy URL
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="border border-[var(--callendra-border)] rounded-2xl p-6 flex flex-col gap-4 mb-8">
           <h2 className="font-semibold">Logo</h2>
           <div className="flex items-center gap-6">

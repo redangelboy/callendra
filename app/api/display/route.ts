@@ -21,6 +21,13 @@ export async function GET(req: NextRequest) {
 
     if (!row) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+    const tokenParam = searchParams.get("token") ?? "";
+    if (row.displayToken) {
+      if (!tokenParam || tokenParam !== row.displayToken) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+    }
+
     const { staff } = await loadLocationCatalog(prisma, row.id);
 
     // Si es sucursal, obtener nombre y logo del main
@@ -36,7 +43,8 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const business = { ...row, staff, parentName, logo, locationSlug: row.locationSlug };
+    const { displayToken: _omit, ...rowPublic } = row;
+    const business = { ...rowPublic, staff, parentName, logo, locationSlug: row.locationSlug };
 
     const todayChicago = new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
     const { start: startUTC, end: endUTC } = businessDayUtcRange(todayChicago);

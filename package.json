@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "postinstall": "prisma generate",
     "dev": "TURBOPACK=0 node server.js",
     "build": "next build",
     "start": "next start",

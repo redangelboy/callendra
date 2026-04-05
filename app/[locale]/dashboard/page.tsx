@@ -1,10 +1,14 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
+import { useParams } from "next/navigation";
 import { bookingPathForBusiness } from "@/lib/booking-path";
 import { isMainBusinessFromPayload } from "@/lib/main-business";
 import { DashboardNewAppointmentModal } from "@/components/dashboard-new-appointment-modal";
 
 export default function DashboardPage() {
+  const routeParams = useParams();
+  const locale = typeof routeParams?.locale === "string" ? routeParams.locale : "en";
+
   const [session, setSession] = useState<any>(null);
   const [business, setBusiness] = useState<any>(null);
   const [appointments, setAppointments] = useState<any[]>([]);
@@ -233,6 +237,16 @@ export default function DashboardPage() {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 
+  const displayScreenHref =
+    business.displayToken
+      ? `/${locale}/display/${session.slug}?token=${encodeURIComponent(business.displayToken)}`
+      : `/${locale}/dashboard/profile?displayToken=required`;
+
+  const withDisplayHref = (actions: { label: string; icon: string; href: string }[]) =>
+    actions.map((a) =>
+      a.label === "Display screen" ? { ...a, href: displayScreenHref } : a
+    );
+
   const mainActionsMulti = [
     { label: "Manage staff", icon: "👤", href: "/en/dashboard/staff" },
     { label: "Manage services", icon: "✂️", href: "/en/dashboard/services" },
@@ -242,7 +256,7 @@ export default function DashboardPage() {
     { label: "Team access", icon: "🔑", href: "#team" },
   ];
 
-  const locationActionsMulti = [
+  const locationActionsMulti = withDisplayHref([
     { label: "Schedule", icon: "🕐", href: "/en/dashboard/schedule" },
     { label: "Today's bookings", icon: "📅", href: "#today" },
     { label: "Display screen", icon: "📺", href: `/en/display/${session.slug}` },
@@ -250,10 +264,10 @@ export default function DashboardPage() {
     { label: "Assigned services", icon: "💈", href: "/en/dashboard/services" },
     { label: "Business profile", icon: "⚙️", href: "/en/dashboard/profile" },
     ...(isOwner ? [{ label: "Consolidated reports", icon: "📊", href: "/en/dashboard/reports" }] as const : []),
-  ];
+  ]);
 
   /** Una sola fila Business para esta marca: catálogo + operación en un solo lugar */
-  const fullActionsSingle = [
+  const fullActionsSingle = withDisplayHref([
     { label: "Manage staff", icon: "👤", href: "/en/dashboard/staff" },
     { label: "Manage services", icon: "✂️", href: "/en/dashboard/services" },
     { label: "Set schedule", icon: "🕐", href: "/en/dashboard/schedule" },
@@ -263,7 +277,7 @@ export default function DashboardPage() {
     { label: "Locations", icon: "🏪", href: "/en/dashboard/locations" },
     { label: "Team access", icon: "🔑", href: "#team" },
     ...(isOwner ? [{ label: "Consolidated reports", icon: "📊", href: "/en/dashboard/reports" }] : []),
-  ];
+  ]);
 
   const isStaffUser = session?.userType === "staff";
 

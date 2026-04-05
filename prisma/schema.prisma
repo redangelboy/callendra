@@ -19,6 +19,8 @@ model Business {
   address        String?
   /** Preset de colores para booking / pantalla pública (ver lib/callendra-themes.ts) */
   themePreset    String   @default("appleDark")
+  /** Secreto para URL de pantalla pública /en/display/[slug]?token=… */
+  displayToken   String?  @unique
   plan           String   @default("starter")
   active         Boolean  @default(true)
   createdAt      DateTime @default(now())
