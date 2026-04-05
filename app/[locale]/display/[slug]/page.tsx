@@ -1,6 +1,7 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
+import { StaffAvatar } from "@/components/staff-avatar";
 
 const DAYS = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 
@@ -79,46 +80,44 @@ export default function DisplayPage() {
   }));
 
   if (!business) return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-      <div className="text-white text-xl animate-pulse">Loading display...</div>
+    <div className="min-h-screen bg-[var(--callendra-bg)] flex items-center justify-center">
+      <div className="text-[var(--callendra-text-primary)] text-xl animate-pulse">Loading display...</div>
     </div>
   );
 
   return (
-    <main className="min-h-screen bg-gray-950 text-white p-6">
-      <div className="flex justify-between items-center mb-8 border-b border-white/10 pb-6">
+    <main className="min-h-screen bg-[var(--callendra-bg)] text-[var(--callendra-text-primary)] p-6">
+      <div className="flex justify-between items-center mb-8 border-b border-[var(--callendra-border)] pb-6">
         <div className="flex items-center gap-4">
           {business.logo && (
-            <img src={business.logo} alt="Logo" className="w-32 h-32 rounded-full object-contain border-2 border-white/20" />
+            <img src={business.logo} alt="Logo" className="w-32 h-32 rounded-full object-contain border-2 border-[var(--callendra-border)]" />
           )}
           <div>
             <h1 className="text-4xl font-bold tracking-tight">
               {business.parentSlug && business.locationSlug ? `${business.parentName || business.name}` : business.name}
               {business.parentSlug && business.locationSlug && business.name ? ` - ${business.name}` : ""}
             </h1>
-            <p className="text-gray-400 mt-1">{DAYS[now.getDay()]}, {now.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</p>
+            <p className="text-[var(--callendra-text-secondary)] mt-1">{DAYS[now.getDay()]}, {now.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</p>
           </div>
         </div>
         <div className="text-right">
-          <div className="text-5xl font-mono font-bold text-green-400">{formatClock(now)}</div>
-          <div className="text-gray-400 text-sm mt-1">{appointments.length} appointments today</div>
+          <div className="text-5xl font-mono font-bold text-[var(--callendra-accent)]">{formatClock(now)}</div>
+          <div className="text-[var(--callendra-text-secondary)] text-sm mt-1">{appointments.length} appointments today</div>
         </div>
       </div>
       <div className="grid gap-6" style={{ gridTemplateColumns: `repeat(${Math.min(staff.length, 4)}, 1fr)` }}>
         {byStaff.map((s: any) => (
-          <div key={s.id} className="bg-gray-900 rounded-2xl overflow-hidden">
-            <div className="bg-white/5 px-5 py-4 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-green-500/20 border border-green-500/30 flex items-center justify-center font-bold text-green-400 text-lg">
-                {s.name.charAt(0).toUpperCase()}
-              </div>
+          <div key={s.id} className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] rounded-2xl overflow-hidden border border-[var(--callendra-border)]">
+            <div className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] px-5 py-4 flex items-center gap-4">
+              <StaffAvatar name={s.name} photo={s.photo} size="display" />
               <div>
                 <div className="font-bold text-lg">{s.name}</div>
-                <div className="text-xs text-gray-400">{s.appointments.length} appointments</div>
+                <div className="text-xs text-[var(--callendra-text-secondary)]">{s.appointments.length} appointments</div>
               </div>
             </div>
             <div className="p-4 flex flex-col gap-3">
               {s.appointments.length === 0 ? (
-                <div className="text-center py-8 text-gray-600">
+                <div className="text-center py-8 text-[var(--callendra-text-secondary)]">
                   <div className="text-3xl mb-2">📅</div>
                   <div className="text-sm">No appointments</div>
                 </div>
@@ -133,18 +132,18 @@ export default function DisplayPage() {
                     <div key={apt.id} className={`rounded-xl px-4 py-3 border transition ${
                       isInProgress ? "bg-green-500/20 border-green-500/50" :
                       isNext ? "bg-green-500/10 border-green-500/30" :
-                      "bg-white/5 border-white/10"
+                      "bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border-[var(--callendra-border)]"
                     }`}>
                       <div className="flex justify-between items-start">
                         <div>
-                          <div className={`font-semibold ${isNext ? "text-green-400" : "text-white"}`}>{apt.clientName}</div>
-                          <div className="text-xs text-gray-400 mt-0.5">{apt.service?.name}</div>
+                          <div className={`font-semibold ${isNext ? "text-[var(--callendra-accent)]" : "text-[var(--callendra-text-primary)]"}`}>{apt.clientName}</div>
+                          <div className="text-xs text-[var(--callendra-text-secondary)] mt-0.5">{apt.service?.name}</div>
                         </div>
                         <div className="text-right">
-                          <div className={`font-mono font-bold text-lg ${isNext || isInProgress ? "text-green-400" : "text-white"}`}>
+                          <div className={`font-mono font-bold text-lg ${isNext || isInProgress ? "text-[var(--callendra-accent)]" : "text-[var(--callendra-text-primary)]"}`}>
                             {formatTime(apt.date)}
                           </div>
-                          {isNext && <div className="text-xs text-green-500 font-medium">NEXT</div>}
+                          {isNext && <div className="text-xs text-[var(--callendra-success)] font-medium">NEXT</div>}
                           
                         </div>
                       </div>
@@ -156,7 +155,7 @@ export default function DisplayPage() {
           </div>
         ))}
       </div>
-      <div className="mt-8 text-center text-gray-700 text-xs">
+      <div className="mt-8 text-center text-[var(--callendra-text-secondary)] opacity-80 text-xs">
         Auto-refreshes every 30 seconds · Powered by Callendra
       </div>
     </main>

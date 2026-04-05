@@ -3,6 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { loadLocationCatalog } from "@/lib/location-catalog";
 import { utcFromYmdAndTime } from "@/lib/business-timezone";
+import { findStaffOverlappingAppointment } from "@/lib/appointment-overlap";
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL!
@@ -121,34 +122,22 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
-    // Checar overlap considerando duración del servicio
     const serviceDuration = selectedService.duration || 30;
     const appointmentEnd = new Date(appointmentDate.getTime() + serviceDuration * 60000);
 
-    const conflict = await prisma.appointment.findFirst({
-      where: {
-        staffId: selectedStaff.id,
-        status: { not: "cancelled" },
-        AND: [
-          { date: { lt: appointmentEnd } },
-          {
-            date: {
-              gte: new Date(appointmentDate.getTime() - serviceDuration * 60000)
-            }
-          }
-        ]
-      },
-      include: { service: true }
+    const overlap = await findStaffOverlappingAppointment(prisma, {
+      staffId: selectedStaff.id,
+      start: appointmentDate,
+      end: appointmentEnd,
     });
-
-    if (conflict) {
-      const conflictEnd = new Date(conflict.date.getTime() + (conflict.service?.duration || 30) * 60000);
-      if (conflict.date < appointmentEnd && conflictEnd > appointmentDate) {
-        return NextResponse.json({
+    if (overlap) {
+      return NextResponse.json(
+        {
           success: false,
-          message: `${selectedStaff.name} is busy at that time. Please choose a different time or barber.`
-        }, { status: 409 });
-      }
+          message: `${selectedStaff.name} is busy at that time. Please choose a different time or barber.`,
+        },
+        { status: 409 }
+      );
     }
 
     const appointment = await prisma.appointment.create({

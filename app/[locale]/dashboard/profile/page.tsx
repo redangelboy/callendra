@@ -1,6 +1,17 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { bookingPathForBusiness } from "@/lib/booking-path";
+import {
+  CALLENDRA_THEMES,
+  type CallendraThemeId,
+  DEFAULT_THEME_ID,
+  GOLDEN_LUXE_BUTTON_GRADIENT,
+  THEME_CATEGORY_OPTIONS,
+  THEME_LABELS,
+  themesForCategory,
+  type ThemeCategoryFilterId,
+  isValidThemeId,
+} from "@/lib/callendra-themes";
 
 export default function ProfilePage() {
   const [form, setForm] = useState({
@@ -8,11 +19,11 @@ export default function ProfilePage() {
     phone: "",
     notificationPhone: "",
     address: "",
-    primaryColor: "#000000",
-    secondaryColor: "#ffffff",
     logo: "",
     retellPhoneNumber: "",
+    themePreset: DEFAULT_THEME_ID as string,
   });
+  const [themeCategory, setThemeCategory] = useState<ThemeCategoryFilterId>("all");
   const [showNotificationPhone, setShowNotificationPhone] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -33,15 +44,16 @@ export default function ProfilePage() {
 
       const hasNotif = "notificationPhone" in data;
       setShowNotificationPhone(hasNotif);
+      const tp = data.themePreset;
       setForm({
         name: data.name || "",
         phone: data.phone || "",
         notificationPhone: hasNotif ? data.notificationPhone || "" : "",
         address: data.address || "",
-        primaryColor: data.primaryColor || "#000000",
-        secondaryColor: data.secondaryColor || "#ffffff",
         logo: data.logo || "",
         retellPhoneNumber: data.retellPhoneNumber || "",
+        themePreset:
+          typeof tp === "string" && isValidThemeId(tp) ? tp : DEFAULT_THEME_ID,
       });
       setSlug(data.slug || "");
 
@@ -107,6 +119,27 @@ export default function ProfilePage() {
     };
   }, []);
 
+  const themeOptionsInCategory = useMemo(
+    () => themesForCategory(themeCategory),
+    [themeCategory]
+  );
+
+  const activeTheme = useMemo(() => {
+    const id = form.themePreset;
+    if (typeof id === "string" && isValidThemeId(id)) return CALLENDRA_THEMES[id];
+    return CALLENDRA_THEMES[DEFAULT_THEME_ID];
+  }, [form.themePreset]);
+
+  const handleThemeCategoryChange = (cat: ThemeCategoryFilterId) => {
+    setThemeCategory(cat);
+    const allowed = themesForCategory(cat);
+    const current = form.themePreset;
+    if (typeof current === "string" && isValidThemeId(current) && allowed.includes(current)) {
+      return;
+    }
+    setForm((f) => ({ ...f, themePreset: allowed[0] ?? DEFAULT_THEME_ID }));
+  };
+
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -146,20 +179,20 @@ export default function ProfilePage() {
   };
 
   return (
-    <main className="min-h-screen bg-black text-white">
-      <nav className="border-b border-white/10 px-8 py-4 flex items-center gap-4">
-        <a href="/en/dashboard" className="text-gray-400 hover:text-white transition text-sm">← Dashboard</a>
-        <span className="text-white font-semibold">Business Profile</span>
+    <main className="min-h-screen">
+      <nav className="border-b border-[var(--callendra-border)] px-8 py-4 flex items-center gap-4">
+        <a href="/en/dashboard" className="text-[var(--callendra-text-secondary)] hover:opacity-90 transition text-sm">← Dashboard</a>
+        <span className="text-[var(--callendra-text-primary)] font-semibold">Business Profile</span>
       </nav>
       <div className="max-w-2xl mx-auto px-8 py-10">
         <h1 className="text-2xl font-bold mb-2">Business Profile</h1>
-        <p className="text-gray-400 text-sm mb-8">Update your business information.</p>
-        <div className="border border-white/10 rounded-2xl p-5 mb-8">
+        <p className="text-[var(--callendra-text-secondary)] text-sm mb-8">Update your business information.</p>
+        <div className="border border-[var(--callendra-border)] rounded-2xl p-5 mb-8">
           {isMainBusiness && hasLocations && mainLocationLinks.length > 0 ? (
             <>
               <div className="mb-4">
                 <div className="text-sm font-medium">Your booking links</div>
-                <div className="text-xs text-gray-400 mt-1">Share these with your clients</div>
+                <div className="text-xs text-[var(--callendra-text-secondary)] mt-1">Share these with your clients</div>
               </div>
               <ul className="flex flex-col divide-y divide-white/10">
                 {mainLocationLinks.map((row) => (
@@ -167,12 +200,12 @@ export default function ProfilePage() {
                     key={row.id}
                     className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-4 py-3 first:pt-0 last:pb-0"
                   >
-                    <span className="text-sm text-white">{row.name}</span>
+                    <span className="text-sm text-[var(--callendra-text-primary)]">{row.name}</span>
                     <a
                       href={`/en${row.path}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-sm text-green-400 hover:text-green-300 transition font-mono break-all sm:text-right"
+                      className="text-sm text-[var(--callendra-accent)] hover:opacity-80 transition font-mono break-all sm:text-right"
                     >
                       {row.path}
                     </a>
@@ -184,98 +217,184 @@ export default function ProfilePage() {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
                 <div className="text-sm font-medium">Your booking link</div>
-                <div className="text-xs text-gray-400 mt-1">Share this with your clients</div>
+                <div className="text-xs text-[var(--callendra-text-secondary)] mt-1">Share this with your clients</div>
               </div>
               <a
                 href={bookingPath ? `/en${bookingPath}` : `/en/book/${slug}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-sm text-green-400 hover:text-green-300 transition font-mono break-all sm:text-right"
+                className="text-sm text-[var(--callendra-accent)] hover:opacity-80 transition font-mono break-all sm:text-right"
               >
                 {bookingPath || `/book/${slug}`}
               </a>
             </div>
           )}
         </div>
-        <div className="border border-white/10 rounded-2xl p-6 flex flex-col gap-4 mb-8">
+        <div className="border border-[var(--callendra-border)] rounded-2xl p-6 flex flex-col gap-4 mb-8">
           <h2 className="font-semibold">Logo</h2>
           <div className="flex items-center gap-6">
             {form.logo ? (
-              <img src={form.logo} alt="Logo" className="w-20 h-20 rounded-2xl object-contain border border-white/10" />
+              <img src={form.logo} alt="Logo" className="w-20 h-20 rounded-2xl object-contain border border-[var(--callendra-border)]" />
             ) : (
-              <div className="w-20 h-20 rounded-2xl border border-white/10 bg-white/5 flex items-center justify-center text-gray-500 text-xs">No logo</div>
+              <div className="w-20 h-20 rounded-2xl border border-[var(--callendra-border)] bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] flex items-center justify-center text-[var(--callendra-text-secondary)] opacity-80 text-xs">No logo</div>
             )}
             <div className="flex flex-col gap-2">
-              <label className="cursor-pointer bg-white/10 hover:bg-white/20 transition px-4 py-2 rounded-xl text-sm font-medium">
+              <label className="cursor-pointer bg-[color-mix(in_srgb,var(--callendra-text-primary)_10%,var(--callendra-bg))] hover:bg-[color-mix(in_srgb,var(--callendra-text-primary)_14%,transparent)] transition px-4 py-2 rounded-xl text-sm font-medium">
                 {uploading ? "Uploading..." : "Upload logo"}
                 <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} disabled={uploading} />
               </label>
-              <p className="text-xs text-gray-500">PNG, JPG up to 5MB</p>
+              <p className="text-xs text-[var(--callendra-text-secondary)] opacity-80">PNG, JPG up to 5MB</p>
             </div>
           </div>
         </div>
-        <div className="border border-white/10 rounded-2xl p-6 flex flex-col gap-4 mb-8">
+
+        <div className="border border-[var(--callendra-border)] rounded-2xl p-6 flex flex-col gap-4 mb-8">
+          <div>
+            <h2 className="font-semibold">Tema de colores</h2>
+            <p className="text-xs text-[var(--callendra-text-secondary)] opacity-80 mt-1">
+              Aplica a la página de reservas y a la pantalla pública (solo colores, no el panel del dashboard).
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex flex-col gap-1 flex-1 min-w-0">
+              <label className="text-sm text-[var(--callendra-text-secondary)]">Filtrar por estilo</label>
+              <select
+                value={themeCategory}
+                onChange={(e) => handleThemeCategoryChange(e.target.value as ThemeCategoryFilterId)}
+                className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition text-[var(--callendra-text-primary)]"
+              >
+                {THEME_CATEGORY_OPTIONS.map((o) => (
+                  <option key={o.id} value={o.id} className="bg-neutral-900">
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1 flex-1 min-w-0">
+              <label className="text-sm text-[var(--callendra-text-secondary)]">Tema</label>
+              <select
+                value={form.themePreset}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, themePreset: e.target.value }))
+                }
+                className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition text-[var(--callendra-text-primary)]"
+              >
+                {themeOptionsInCategory.map((id) => (
+                  <option key={id} value={id} className="bg-neutral-900">
+                    {THEME_LABELS[id].title} — {THEME_LABELS[id].mood}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div
+            className="rounded-2xl border p-4 sm:p-5 mt-2"
+            style={{
+              background: activeTheme.background,
+              borderColor: activeTheme.border,
+            }}
+          >
+            <div
+              className="rounded-xl border p-4 shadow-sm"
+              style={{
+                background: activeTheme.surface,
+                borderColor: activeTheme.border,
+                color: activeTheme.textPrimary,
+              }}
+            >
+              <p className="text-xs font-medium uppercase tracking-wide" style={{ color: activeTheme.textSecondary }}>
+                Vista previa
+              </p>
+              <h3 className="text-lg font-semibold mt-1">{THEME_LABELS[(form.themePreset as CallendraThemeId) || DEFAULT_THEME_ID].title}</h3>
+              <p className="text-sm mt-1" style={{ color: activeTheme.textSecondary }}>
+                Texto secundario y descripciones.
+              </p>
+              <div className="flex flex-wrap gap-2 mt-4">
+                {(
+                  [
+                    ["bg", activeTheme.background],
+                    ["surface", activeTheme.surface],
+                    ["accent", activeTheme.accent],
+                    ["primary", activeTheme.buttonPrimary],
+                    ["éxito", activeTheme.success],
+                  ] as const
+                ).map(([label, hex]) => (
+                  <div key={label} className="flex items-center gap-1.5 text-[10px]" style={{ color: activeTheme.textSecondary }}>
+                    <span className="w-6 h-6 rounded-md border shrink-0" style={{ background: hex, borderColor: activeTheme.border }} />
+                    <span className="uppercase">{label}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-2 mt-4">
+                <button
+                  type="button"
+                  className="px-4 py-2 rounded-xl text-sm font-medium text-white"
+                  style={
+                    form.themePreset === "goldenLuxe"
+                      ? { background: GOLDEN_LUXE_BUTTON_GRADIENT }
+                      : { background: activeTheme.buttonPrimary }
+                  }
+                >
+                  Botón principal
+                </button>
+                <button
+                  type="button"
+                  className="px-4 py-2 rounded-xl text-sm font-medium text-white opacity-90"
+                  style={{ background: activeTheme.buttonHover }}
+                >
+                  Hover
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="border border-[var(--callendra-border)] rounded-2xl p-6 flex flex-col gap-4 mb-8">
           <h2 className="font-semibold">Basic information</h2>
           <div className="flex flex-col gap-1">
-            <label className="text-sm text-gray-400">Business name</label>
+            <label className="text-sm text-[var(--callendra-text-secondary)]">Business name</label>
             <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
-              className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/30 transition" />
+              className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition" />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-sm text-gray-400">Business phone</label>
+            <label className="text-sm text-[var(--callendra-text-secondary)]">Business phone</label>
             <input type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })}
-              className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/30 transition" />
+              className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition" />
           </div>
           {showNotificationPhone && (
             <div className="flex flex-col gap-1">
-              <label className="text-sm text-gray-400">Notification phone (optional)</label>
+              <label className="text-sm text-[var(--callendra-text-secondary)]">Notification phone (optional)</label>
               <input
                 type="tel"
                 value={form.notificationPhone}
                 onChange={(e) => setForm({ ...form, notificationPhone: e.target.value })}
                 placeholder="+1 (555) 000-0000"
-                className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/30 transition"
+                className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition"
               />
-              <p className="text-xs text-gray-500">SMS for cancel requests and alerts. Falls back to business phone if empty.</p>
+              <p className="text-xs text-[var(--callendra-text-secondary)] opacity-80">SMS for cancel requests and alerts. Falls back to business phone if empty.</p>
             </div>
           )}
           <div className="flex flex-col gap-1">
-            <label className="text-sm text-gray-400">Address</label>
+            <label className="text-sm text-[var(--callendra-text-secondary)]">Address</label>
             <input type="text" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })}
               placeholder="123 Main St, Dallas TX"
-              className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/30 transition" />
+              className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition" />
           </div>
           {(!isMainBusiness || !hasLocations) && (
             <div className="flex flex-col gap-1">
-              <label className="text-sm text-gray-400">AI Agent Phone Number</label>
+              <label className="text-sm text-[var(--callendra-text-secondary)]">AI Agent Phone Number</label>
               <input type="tel" value={form.retellPhoneNumber} onChange={(e) => setForm({ ...form, retellPhoneNumber: e.target.value })}
                 placeholder="+19453072113"
-                className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/30 transition" />
-              <p className="text-xs text-gray-500">Phone number assigned by Retell AI for this location</p>
+                className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition" />
+              <p className="text-xs text-[var(--callendra-text-secondary)] opacity-80">Phone number assigned by Retell AI for this location</p>
             </div>
           )}
-          <div className="flex gap-4">
-            <div className="flex flex-col gap-1 flex-1">
-              <label className="text-sm text-gray-400">Primary color</label>
-              <div className="flex items-center gap-3">
-                <input type="color" value={form.primaryColor} onChange={(e) => setForm({ ...form, primaryColor: e.target.value })}
-                  className="w-10 h-10 rounded-lg border border-white/10 bg-transparent cursor-pointer" />
-                <span className="text-sm font-mono text-gray-400">{form.primaryColor}</span>
-              </div>
-            </div>
-            <div className="flex flex-col gap-1 flex-1">
-              <label className="text-sm text-gray-400">Secondary color</label>
-              <div className="flex items-center gap-3">
-                <input type="color" value={form.secondaryColor} onChange={(e) => setForm({ ...form, secondaryColor: e.target.value })}
-                  className="w-10 h-10 rounded-lg border border-white/10 bg-transparent cursor-pointer" />
-                <span className="text-sm font-mono text-gray-400">{form.secondaryColor}</span>
-              </div>
-            </div>
-          </div>
           {error && <p className="text-red-400 text-sm">{error}</p>}
-          {saved && <p className="text-green-400 text-sm">✓ Saved successfully</p>}
+          {saved && <p className="text-[var(--callendra-accent)] text-sm">✓ Saved successfully</p>}
           <button onClick={handleSave} disabled={loading}
-            className="bg-white text-black py-3 rounded-xl font-semibold text-sm hover:bg-gray-200 transition disabled:opacity-50">
+            className="ui-btn-primary py-3 rounded-xl font-semibold text-sm transition disabled:opacity-50">
             {loading ? "Saving..." : "Save changes"}
           </button>
         </div>

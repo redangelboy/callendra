@@ -132,22 +132,22 @@ export default function StaffPage() {
   };
 
   return (
-    <main className="min-h-screen bg-black text-white">
-      <nav className="border-b border-white/10 px-8 py-4 flex items-center gap-4">
-        <a href="/en/dashboard" className="text-gray-400 hover:text-white transition text-sm">← Dashboard</a>
-        <span className="text-white font-semibold">{isMain ? "Staff" : "Assigned staff"}</span>
+    <main className="min-h-screen">
+      <nav className="border-b border-[var(--callendra-border)] px-8 py-4 flex items-center gap-4">
+        <a href="/en/dashboard" className="text-[var(--callendra-text-secondary)] hover:opacity-90 transition text-sm">← Dashboard</a>
+        <span className="text-[var(--callendra-text-primary)] font-semibold">{isMain ? "Staff" : "Assigned staff"}</span>
       </nav>
 
       <div className="max-w-2xl mx-auto px-8 py-10">
         <h1 className="text-2xl font-bold mb-2">{isMain ? "Manage staff" : "Assigned staff"}</h1>
-        <p className="text-gray-400 text-sm mb-8">
+        <p className="text-[var(--callendra-text-secondary)] text-sm mb-8">
           {isMain
             ? "Staff are shared across locations. Assign each person to the locations where they work."
             : "Read-only list for this location."}
         </p>
 
         {isMain && (
-          <div className="border border-white/10 rounded-2xl p-6 mb-8">
+          <div className="border border-[var(--callendra-border)] rounded-2xl p-6 mb-8">
             <h2 className="font-semibold mb-4">Add new staff member</h2>
             <div className="flex gap-3">
               <input
@@ -156,10 +156,10 @@ export default function StaffPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-                className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/30 transition"
+                className="flex-1 bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition"
               />
               <button onClick={handleAdd} disabled={loading}
-                className="bg-white text-black px-6 py-3 rounded-xl text-sm font-semibold hover:bg-gray-200 transition disabled:opacity-50">
+                className="ui-btn-primary px-6 py-3 rounded-xl text-sm font-semibold transition disabled:opacity-50">
                 {loading ? "Adding..." : "Add"}
               </button>
             </div>
@@ -170,17 +170,17 @@ export default function StaffPage() {
 
         <div className="flex flex-col gap-3">
           {staff.length === 0 ? (
-            <div className="border border-white/10 rounded-2xl p-8 text-center">
+            <div className="border border-[var(--callendra-border)] rounded-2xl p-8 text-center">
               <div className="text-4xl mb-3">👤</div>
-              <p className="text-gray-400 text-sm">No staff members yet</p>
+              <p className="text-[var(--callendra-text-secondary)] text-sm">No staff members yet</p>
             </div>
           ) : (
             staff.map((s) => (
-              <div key={s.id} className="border border-white/10 rounded-2xl px-6 py-4 hover:border-white/20 transition">
+              <div key={s.id} className="border border-[var(--callendra-border)] rounded-2xl px-6 py-4 hover:border-[var(--callendra-border)] transition">
                 <div className="flex justify-between items-start gap-4">
                   <div className="flex items-center gap-3">
                     <label className="cursor-pointer relative group">
-                      <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-white/20 bg-white/10 flex items-center justify-center">
+                      <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-[var(--callendra-border)] bg-[color-mix(in_srgb,var(--callendra-text-primary)_10%,var(--callendra-bg))] flex items-center justify-center">
                         {s.photo ? (
                           <img src={s.photo} alt={s.name} className="w-full h-full object-cover" />
                         ) : (
@@ -190,7 +190,7 @@ export default function StaffPage() {
                       {isMain && (
                         <>
                           <div className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
-                            <span className="text-white text-xs">{uploadingId === s.id ? "..." : "📷"}</span>
+                            <span className="text-[var(--callendra-text-primary)] text-xs">{uploadingId === s.id ? "..." : "📷"}</span>
                           </div>
                           <input type="file" accept="image/*" className="hidden"
                             onChange={(e) => handlePhotoUpload(s.id, e)}
@@ -200,38 +200,38 @@ export default function StaffPage() {
                     </label>
                     <div>
                       <div className="font-medium">{s.name}</div>
-                      {s.phone && <div className="text-xs text-gray-500 mt-0.5">{s.phone}</div>}
-                      {s.email && <div className="text-xs text-gray-500">{s.email}</div>}
+                      {s.phone && <div className="text-xs text-[var(--callendra-text-secondary)] opacity-80 mt-0.5">{s.phone}</div>}
+                      {s.email && <div className="text-xs text-[var(--callendra-text-secondary)] opacity-80">{s.email}</div>}
                     </div>
                   </div>
                   {isMain && (
                     <div className="flex gap-3 shrink-0">
                       <button
                         onClick={() => { setEditingStaff(s); setEditForm({ name: s.name, phone: s.phone || "", email: s.email || "" }); }}
-                        className="text-gray-400 hover:text-white transition text-sm">
+                        className="text-[var(--callendra-text-secondary)] hover:opacity-90 transition text-sm">
                         Edit
                       </button>
                       <button onClick={() => handleDelete(s.id)}
-                        className="text-gray-600 hover:text-red-400 transition text-sm">
+                        className="text-[var(--callendra-text-secondary)] opacity-80 hover:text-red-400 transition text-sm">
                         Remove
                       </button>
                     </div>
                   )}
                 </div>
                 {isMain && branchLocations.length > 0 && (
-                  <div className="mt-4 pt-4 border-t border-white/10">
-                    <p className="text-xs text-gray-500 mb-2">Locations</p>
+                  <div className="mt-4 pt-4 border-t border-[var(--callendra-border)]">
+                    <p className="text-xs text-[var(--callendra-text-secondary)] opacity-80 mb-2">Locations</p>
                     <div className="flex flex-wrap gap-3">
                       {branchLocations.map((loc) => {
                         const ids: string[] = s.assignedLocationIds || [];
                         const checked = ids.includes(loc.id);
                         return (
-                          <label key={loc.id} className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+                          <label key={loc.id} className="flex items-center gap-2 text-sm text-[var(--callendra-text-secondary)] cursor-pointer">
                             <input
                               type="checkbox"
                         checked={checked}
                               onChange={(e) => toggleLocation(s.id, loc.id, e.target.checked)}
-                              className="rounded border-white/20"
+                              className="rounded border-[var(--callendra-border)]"
                             />
                             {loc.name}
                           </label>
@@ -248,27 +248,27 @@ export default function StaffPage() {
 
       {/* Edit Staff Modal */}
       {editingStaff && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 border border-white/10 rounded-2xl p-6 w-full max-w-sm">
+        <div className="fixed inset-0 bg-[color-mix(in_srgb,var(--callendra-text-primary)_65%,var(--callendra-bg))] backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_10%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-2xl p-6 w-full max-w-sm">
             <h2 className="text-lg font-semibold mb-4">Edit staff member</h2>
             <div className="space-y-3">
               <input
                 placeholder="Name *"
                 value={editForm.name}
                 onChange={e => setEditForm({ ...editForm, name: e.target.value })}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm text-white"
+                className="w-full bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-2 text-sm text-[var(--callendra-text-primary)]"
               />
               <input
                 placeholder="Phone (optional)"
                 value={editForm.phone}
                 onChange={e => setEditForm({ ...editForm, phone: e.target.value })}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm text-white"
+                className="w-full bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-2 text-sm text-[var(--callendra-text-primary)]"
               />
               <input
                 placeholder="Email (optional)"
                 value={editForm.email}
                 onChange={e => setEditForm({ ...editForm, email: e.target.value })}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm text-white"
+                className="w-full bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-2 text-sm text-[var(--callendra-text-primary)]"
               />
             </div>
             <div className="flex gap-3 mt-5">
@@ -277,7 +277,7 @@ export default function StaffPage() {
                 {editLoading ? "Saving..." : "Save changes"}
               </button>
               <button onClick={() => setEditingStaff(null)}
-                className="flex-1 border border-white/10 py-3 rounded-xl text-sm hover:bg-white/5 transition">
+                className="flex-1 border border-[var(--callendra-border)] py-3 rounded-xl text-sm hover:bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] transition">
                 Cancel
               </button>
             </div>

@@ -56,22 +56,39 @@ export async function GET(req: NextRequest) {
 
     if (!schedule) return NextResponse.json({ slots: [] });
 
-    const startOfDay = new Date(date + "T00:00:00");
-    const endOfDay = new Date(date + "T23:59:59");
+    const { start: dayStart, end: dayEnd } = businessDayUtcRange(date);
     const existingAppointments = await prisma.appointment.findMany({
       where: {
         staffId,
-        date: { gte: startOfDay, lte: endOfDay },
-        status: { not: "cancelled" }
-      }
+        date: { gte: dayStart, lte: dayEnd },
+        status: { not: "cancelled" },
+      },
+      include: { service: true },
     });
 
-    const duration = service.duration;
+    const rawDuration = Number(service.duration);
+    const duration = Number.isFinite(rawDuration) && rawDuration > 0 ? Math.floor(rawDuration) : 30;
     const slots: string[] = [];
     const [startH, startM] = schedule.startTime.split(":").map(Number);
     const [endH, endM] = schedule.endTime.split(":").map(Number);
     const startMinutes = startH * 60 + startM;
     const endMinutes = endH * 60 + endM;
+
+    if (!Number.isFinite(startMinutes) || !Number.isFinite(endMinutes) || endMinutes <= startMinutes) {
+      return NextResponse.json({ slots: [] });
+    }
+
+    /** true si [slotStart, slotEnd) se solapa con alguna cita existente (misma regla que el POST de booking). */
+    function slotOverlapsExisting(slotStart: Date, slotEnd: Date): boolean {
+      const s0 = slotStart.getTime();
+      const e0 = slotEnd.getTime();
+      return existingAppointments.some((apt) => {
+        const aptDur = apt.service?.duration ?? 30;
+        const aptStart = apt.date.getTime();
+        const aptEnd = aptStart + aptDur * 60_000;
+        return aptStart < e0 && aptEnd > s0;
+      });
+    }
 
     for (let m = startMinutes; m + duration <= endMinutes; m += duration) {
       const h = Math.floor(m / 60);
@@ -79,12 +96,10 @@ export async function GET(req: NextRequest) {
       const timeStr = `${h.toString().padStart(2, "0")}:${min.toString().padStart(2, "0")}`;
 
       const slotDate = utcFromYmdAndTime(date, timeStr);
-      const isBooked = existingAppointments.some(apt => {
-        const aptTime = new Date(apt.date);
-        return aptTime.getTime() === slotDate.getTime();
-      });
+      const slotEnd = new Date(slotDate.getTime() + duration * 60_000);
+      if (slotOverlapsExisting(slotDate, slotEnd)) continue;
 
-      if (!isBooked) slots.push(timeStr);
+      slots.push(timeStr);
     }
 
     return NextResponse.json({ slots });

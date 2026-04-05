@@ -21,7 +21,7 @@ export default async function LocaleLayout({
 
   return (
     <html lang={locale}>
-      <body>
+      <body className="min-h-screen antialiased bg-[var(--callendra-bg)] text-[var(--callendra-text-primary)]">
         <NextIntlClientProvider messages={messages}>
           <RecaptchaProvider>
             {children}

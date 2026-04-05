@@ -1,1 +1,41 @@
 @import "tailwindcss";
+
+/* Callendra marketing (landing, login, register): fijo, no depende del tema del negocio */
+@layer base {
+  :root {
+    --callendra-bg: #000000;
+    --callendra-surface: #0a0a0a;
+    --callendra-text-primary: #ffffff;
+    --callendra-text-secondary: #9ca3af;
+    --callendra-border: rgba(255, 255, 255, 0.12);
+    --callendra-accent: #4ade80;
+    --callendra-button-primary: #ffffff;
+    --callendra-button-hover: #e5e5e5;
+    --callendra-button-primary-bg: #ffffff;
+    --callendra-on-primary: #000000;
+    --callendra-success: #4ade80;
+  }
+}
+
+@layer components {
+  .ui-btn-primary {
+    background: var(--callendra-button-primary-bg);
+    color: var(--callendra-on-primary, #ffffff) !important;
+    transition: filter 0.15s ease, opacity 0.15s ease;
+  }
+  .ui-btn-primary:hover {
+    filter: brightness(1.06);
+  }
+  .ui-input {
+    background-color: color-mix(in srgb, var(--callendra-text-primary) 6%, var(--callendra-bg));
+    border: 1px solid var(--callendra-border);
+    border-radius: 0.75rem;
+    padding: 0.75rem 1rem;
+    font-size: 0.875rem;
+    color: var(--callendra-text-primary);
+    outline: none;
+  }
+  .ui-input:focus {
+    border-color: color-mix(in srgb, var(--callendra-accent) 45%, var(--callendra-border));
+  }
+}

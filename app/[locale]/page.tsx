@@ -5,22 +5,22 @@ export default function Home() {
   const t = useTranslations();
 
   return (
-    <main className="min-h-screen bg-black text-white">
+    <main className="min-h-screen">
 
       {/* Nav */}
-      <nav className="flex justify-between items-center px-8 py-6 border-b border-white/10">
+      <nav className="flex justify-between items-center px-8 py-6 border-b border-[var(--callendra-border)]">
         <span className="text-xl font-bold tracking-tight">Callendra</span>
         <div className="flex items-center gap-4">
-          <Link href="/" locale="es" className="text-xs border border-white/20 px-3 py-1 rounded-full hover:bg-white/10 transition">
+          <Link href="/" locale="es" className="text-xs border border-[var(--callendra-border)] px-3 py-1 rounded-full hover:bg-[color-mix(in_srgb,var(--callendra-text-primary)_10%,transparent)] transition">
             ES
           </Link>
-          <Link href="/" locale="en" className="text-xs border border-white/20 px-3 py-1 rounded-full hover:bg-white/10 transition">
+          <Link href="/" locale="en" className="text-xs border border-[var(--callendra-border)] px-3 py-1 rounded-full hover:bg-[color-mix(in_srgb,var(--callendra-text-primary)_10%,transparent)] transition">
             EN
           </Link>
-          <a href="/login" className="text-sm text-gray-400 hover:text-white transition">
+          <a href="/login" className="text-sm text-[var(--callendra-text-secondary)] hover:opacity-90 transition">
             {t("nav.login")}
           </a>
-          <a href="/register" className="text-sm bg-white text-black px-4 py-2 rounded-full hover:bg-gray-200 transition">
+          <a href="/register" className="ui-btn-primary text-sm px-4 py-2 rounded-full transition">
             {t("nav.register")}
           </a>
         </div>
@@ -28,20 +28,20 @@ export default function Home() {
 
       {/* Hero */}
       <section className="flex flex-col items-center text-center px-8 py-32 gap-6">
-        <span className="text-sm bg-white/10 text-white px-4 py-1 rounded-full">
+        <span className="text-sm bg-[color-mix(in_srgb,var(--callendra-text-primary)_10%,var(--callendra-bg))] text-[var(--callendra-text-primary)] px-4 py-1 rounded-full">
           {t("hero.badge")}
         </span>
         <h1 className="text-5xl md:text-7xl font-bold tracking-tight max-w-4xl leading-tight">
           {t("hero.title")}
         </h1>
-        <p className="text-gray-400 text-lg max-w-xl">
+        <p className="text-[var(--callendra-text-secondary)] text-lg max-w-xl">
           {t("hero.subtitle")}
         </p>
         <div className="flex gap-4 mt-4">
-          <a href="/register" className="bg-white text-black px-6 py-3 rounded-full font-semibold hover:bg-gray-200 transition">
+          <a href="/register" className="ui-btn-primary px-6 py-3 rounded-full font-semibold transition">
             {t("hero.cta")}
           </a>
-          <a href="#precios" className="border border-white/20 px-6 py-3 rounded-full hover:bg-white/10 transition">
+          <a href="#precios" className="border border-[var(--callendra-border)] px-6 py-3 rounded-full hover:bg-[color-mix(in_srgb,var(--callendra-text-primary)_10%,transparent)] transition">
             {t("hero.pricing")}
           </a>
         </div>
@@ -52,10 +52,10 @@ export default function Home() {
         <h2 className="text-3xl font-bold text-center mb-12">{t("features.title")}</h2>
         <div className="grid md:grid-cols-3 gap-8">
           {t.raw("features.items").map((f: { icon: string; title: string; desc: string }) => (
-            <div key={f.title} className="border border-white/10 rounded-2xl p-6 hover:border-white/30 transition">
+            <div key={f.title} className="border border-[var(--callendra-border)] rounded-2xl p-6 hover:border-[var(--callendra-accent)] transition">
               <div className="text-3xl mb-4">{f.icon}</div>
               <h3 className="font-semibold text-lg mb-2">{f.title}</h3>
-              <p className="text-gray-400 text-sm">{f.desc}</p>
+              <p className="text-[var(--callendra-text-secondary)] text-sm">{f.desc}</p>
             </div>
           ))}
         </div>
@@ -66,7 +66,7 @@ export default function Home() {
         <h2 className="text-3xl font-bold text-center mb-12">{t("pricing.title")}</h2>
         <div className="grid md:grid-cols-3 gap-6">
           {t.raw("pricing.plans").map((p: { name: string; price: string; desc: string; features: string[]; highlight?: boolean }) => (
-            <div key={p.name} className={`rounded-2xl p-6 border ${p.highlight ? "border-white bg-white text-black" : "border-white/10"}`}>
+            <div key={p.name} className={`rounded-2xl p-6 border ${p.highlight ? "border-[var(--callendra-accent)] bg-[var(--callendra-surface)] text-[var(--callendra-text-primary)]" : "border-[var(--callendra-border)]"}`}>
               <div className="text-sm mb-1 opacity-60">{p.desc}</div>
               <div className="text-2xl font-bold mb-1">{p.name}</div>
               <div className="text-4xl font-bold mb-6">{p.price}<span className="text-sm font-normal opacity-60">{t("pricing.month")}</span></div>
@@ -77,7 +77,7 @@ export default function Home() {
                   </li>
                 ))}
               </ul>
-              <a href="/register" className={`block text-center py-2 rounded-full text-sm font-semibold transition ${p.highlight ? "bg-black text-white hover:bg-gray-800" : "border border-white/20 hover:bg-white/10"}`}>
+              <a href="/register" className={`block text-center py-2 rounded-full text-sm font-semibold transition ${p.highlight ? "ui-btn-primary" : "border border-[var(--callendra-border)] hover:bg-[color-mix(in_srgb,var(--callendra-text-primary)_10%,transparent)]"}`}>
                 {t("pricing.cta")}
               </a>
             </div>
@@ -86,7 +86,7 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-white/10 px-8 py-8 text-center text-gray-600 text-sm">
+      <footer className="border-t border-[var(--callendra-border)] px-8 py-8 text-center text-[var(--callendra-text-secondary)] opacity-80 text-sm">
         {t("footer")}
       </footer>
 

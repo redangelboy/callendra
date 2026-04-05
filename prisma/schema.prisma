@@ -17,8 +17,8 @@ model Business {
   phone          String?
   retellPhoneNumber String?  @unique
   address        String?
-  primaryColor   String   @default("#000000")
-  secondaryColor String   @default("#ffffff")
+  /** Preset de colores para booking / pantalla pública (ver lib/callendra-themes.ts) */
+  themePreset    String   @default("clearSky")
   plan           String   @default("starter")
   active         Boolean  @default(true)
   createdAt      DateTime @default(now())

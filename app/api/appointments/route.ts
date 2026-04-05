@@ -4,6 +4,7 @@ import { utcFromYmdAndTime } from "@/lib/business-timezone";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { effectiveServicePrice } from "@/lib/location-catalog";
+import { findStaffOverlappingAppointment } from "@/lib/appointment-overlap";
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL!
@@ -73,6 +74,28 @@ export async function PATCH(req: NextRequest) {
     else if (date) updateData.date = new Date(date);
     if (staffId) updateData.staffId = staffId;
     if (serviceId) updateData.serviceId = serviceId;
+
+    const mergedStaffId = staffId ?? existing.staffId;
+    const mergedServiceId = serviceId ?? existing.serviceId;
+    const mergedStart = date && time ? utcFromYmdAndTime(date, time) : new Date(existing.date);
+    if (date && time || staffId || serviceId) {
+      const svc = await prisma.service.findUnique({ where: { id: mergedServiceId } });
+      const durMin = svc?.duration ?? 30;
+      const mergedEnd = new Date(mergedStart.getTime() + durMin * 60_000);
+      const overlap = await findStaffOverlappingAppointment(prisma, {
+        staffId: mergedStaffId,
+        start: mergedStart,
+        end: mergedEnd,
+        excludeAppointmentId: id,
+      });
+      if (overlap) {
+        return NextResponse.json(
+          { error: "That time overlaps another appointment for this staff member." },
+          { status: 409 }
+        );
+      }
+    }
+
     const appointment = await prisma.appointment.update({ where: { id }, data: updateData, include: { staff: true, service: true, business: { include: { owner: true } } } });
 
     // Notificar al owner si es cancel_requested
@@ -115,7 +138,39 @@ export async function POST(req: NextRequest) {
     if (!clientName || !staffId || !serviceId || !date || !time) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
+
+    const assigned = await prisma.staffAssignment.findFirst({
+      where: { businessId, staffId, active: true },
+    });
+    if (!assigned) {
+      return NextResponse.json({ error: "Staff is not assigned to this location" }, { status: 400 });
+    }
+
+    const svcLoc = await prisma.serviceLocation.findFirst({
+      where: { businessId, serviceId, active: true },
+      include: { service: true },
+    });
+    if (!svcLoc?.service?.active) {
+      return NextResponse.json({ error: "Service is not available at this location" }, { status: 400 });
+    }
+
     const aptDate = utcFromYmdAndTime(date, time);
+    const service = await prisma.service.findUnique({ where: { id: serviceId } });
+    const durMin = service?.duration ?? 30;
+    const aptEnd = new Date(aptDate.getTime() + durMin * 60_000);
+
+    const overlap = await findStaffOverlappingAppointment(prisma, {
+      staffId,
+      start: aptDate,
+      end: aptEnd,
+    });
+    if (overlap) {
+      return NextResponse.json(
+        { error: "That time overlaps another appointment for this staff member. Choose a different time or staff." },
+        { status: 409 }
+      );
+    }
+
     const appointment = await prisma.appointment.create({
       data: {
         clientName,
@@ -125,9 +180,16 @@ export async function POST(req: NextRequest) {
         businessId,
         date: aptDate,
         status: "confirmed",
+        source: "dashboard",
       },
       include: { staff: true, service: true },
     });
+
+    const bizRow = await prisma.business.findUnique({ where: { id: businessId }, select: { slug: true } });
+    if (bizRow && (global as any).io) {
+      (global as any).io.to(`display-${bizRow.slug}`).emit("new-appointment", appointment);
+    }
+
     return NextResponse.json({ success: true, appointment });
   } catch (error) {
     console.error("POST appointment error:", error);

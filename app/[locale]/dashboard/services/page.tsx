@@ -120,24 +120,24 @@ export default function ServicesPage() {
   };
 
   return (
-    <main className="min-h-screen bg-black text-white">
-      <nav className="border-b border-white/10 px-8 py-4 flex items-center gap-4">
-        <a href="/en/dashboard" className="text-gray-400 hover:text-white transition text-sm">
+    <main className="min-h-screen">
+      <nav className="border-b border-[var(--callendra-border)] px-8 py-4 flex items-center gap-4">
+        <a href="/en/dashboard" className="text-[var(--callendra-text-secondary)] hover:opacity-90 transition text-sm">
           ← Dashboard
         </a>
-        <span className="text-white font-semibold">{isMain ? "Services" : "Assigned services"}</span>
+        <span className="text-[var(--callendra-text-primary)] font-semibold">{isMain ? "Services" : "Assigned services"}</span>
       </nav>
 
       <div className="max-w-2xl mx-auto px-8 py-10">
         <h1 className="text-2xl font-bold mb-2">{isMain ? "Manage services" : "Assigned services"}</h1>
-        <p className="text-gray-400 text-sm mb-8">
+        <p className="text-[var(--callendra-text-secondary)] text-sm mb-8">
           {isMain
             ? "Set catalog pricing and duration, then choose which locations offer each service. Leave override empty to use the base price."
             : "Read-only for this location. Prices shown are effective at this site (including overrides). Switch to your main business in the location menu to edit the catalog or assignments."}
         </p>
 
         {isMain && (
-          <div className="border border-white/10 rounded-2xl p-6 mb-8">
+          <div className="border border-[var(--callendra-border)] rounded-2xl p-6 mb-8">
             <h2 className="font-semibold mb-4">Add new service</h2>
             <div className="flex flex-col gap-3">
               <input
@@ -145,17 +145,17 @@ export default function ServicesPage() {
                 placeholder="Service name (e.g. Haircut)"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
-                className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/30 transition"
+                className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition"
               />
               <div className="flex gap-3">
                 <div className="flex-1 relative">
-                  <span className="absolute left-4 top-3 text-gray-400 text-sm">$</span>
+                  <span className="absolute left-4 top-3 text-[var(--callendra-text-secondary)] text-sm">$</span>
                   <input
                     type="number"
                     placeholder="Base price"
                     value={form.price}
                     onChange={(e) => setForm({ ...form, price: e.target.value })}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl pl-8 pr-4 py-3 text-sm outline-none focus:border-white/30 transition"
+                    className="w-full bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl pl-8 pr-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition"
                   />
                 </div>
                 <div className="flex-1 relative">
@@ -164,7 +164,7 @@ export default function ServicesPage() {
                     placeholder="Duration (min)"
                     value={form.duration}
                     onChange={(e) => setForm({ ...form, duration: e.target.value })}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/30 transition"
+                    className="w-full bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition"
                   />
                 </div>
               </div>
@@ -172,7 +172,7 @@ export default function ServicesPage() {
               <button
                 onClick={handleAdd}
                 disabled={loading}
-                className="bg-white text-black py-3 rounded-xl text-sm font-semibold hover:bg-gray-200 transition disabled:opacity-50"
+                className="ui-btn-primary py-3 rounded-xl text-sm font-semibold transition disabled:opacity-50"
               >
                 {loading ? "Adding..." : "Add service"}
               </button>
@@ -184,32 +184,32 @@ export default function ServicesPage() {
 
         <div className="flex flex-col gap-3">
           {services.length === 0 ? (
-            <div className="border border-white/10 rounded-2xl p-8 text-center">
+            <div className="border border-[var(--callendra-border)] rounded-2xl p-8 text-center">
               <div className="text-4xl mb-3">✂️</div>
-              <p className="text-gray-400 text-sm">No services yet</p>
+              <p className="text-[var(--callendra-text-secondary)] text-sm">No services yet</p>
             </div>
           ) : (
             services.map((s) => (
-              <div key={s.id} className="border border-white/10 rounded-2xl px-6 py-4 hover:border-white/20 transition">
+              <div key={s.id} className="border border-[var(--callendra-border)] rounded-2xl px-6 py-4 hover:border-[var(--callendra-border)] transition">
                 <div className="flex justify-between items-start gap-4">
                   <div>
                     <div className="font-medium">{s.name}</div>
-                    <div className="text-sm text-gray-400 mt-1">
+                    <div className="text-sm text-[var(--callendra-text-secondary)] mt-1">
                       ${s.price} · {s.duration} min
                     </div>
                   </div>
                   {isMain && (
                     <button
                       onClick={() => handleDelete(s.id)}
-                      className="text-gray-600 hover:text-red-400 transition text-sm shrink-0"
+                      className="text-[var(--callendra-text-secondary)] opacity-80 hover:text-red-400 transition text-sm shrink-0"
                     >
                       Remove
                     </button>
                   )}
                 </div>
                 {isMain && branchLocations.length > 0 && (
-                  <div className="mt-4 pt-4 border-t border-white/10 space-y-3">
-                    <p className="text-xs text-gray-500">Offer at locations (optional price override)</p>
+                  <div className="mt-4 pt-4 border-t border-[var(--callendra-border)] space-y-3">
+                    <p className="text-xs text-[var(--callendra-text-secondary)] opacity-80">Offer at locations (optional price override)</p>
                     {branchLocations.map((loc) => {
                       const on = isServiceAtLocation(s, loc.id);
                       const draftKey = `${s.id}:${loc.id}`;
@@ -218,18 +218,18 @@ export default function ServicesPage() {
                         (on ? getOverride(s, loc.id) : "");
                       return (
                         <div key={loc.id} className="flex flex-wrap items-center gap-3 text-sm">
-                          <label className="flex items-center gap-2 text-gray-300">
+                          <label className="flex items-center gap-2 text-[var(--callendra-text-secondary)]">
                             <input
                               type="checkbox"
                               checked={on}
                               onChange={(e) => toggleLocation(s.id, loc.id, e.target.checked)}
-                              className="rounded border-white/20"
+                              className="rounded border-[var(--callendra-border)]"
                             />
                             {loc.name}
                           </label>
                           {on && (
                             <div className="flex items-center gap-2">
-                              <span className="text-gray-500 text-xs">$</span>
+                              <span className="text-[var(--callendra-text-secondary)] opacity-80 text-xs">$</span>
                               <input
                                 type="text"
                                 placeholder="override"
@@ -245,7 +245,7 @@ export default function ServicesPage() {
                                     priceDrafts[s.id]?.[loc.id] ?? getOverride(s, loc.id);
                                   savePrice(s.id, loc.id, v).catch((e) => setError(e.message));
                                 }}
-                                className="w-24 bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs"
+                                className="w-24 bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-lg px-2 py-1 text-xs"
                               />
                             </div>
                           )}

@@ -38,7 +38,21 @@ export async function resolveBusinessForBooking(
   }
 
   const loc = (locationSlug ?? "").trim();
-  if (!loc) return null;
+
+  /**
+   * Sin segmento en la URL (/book/marca): usar la sede principal de esa marca.
+   * Incluye filas con locationSlug vacío o "main" (migración de una sola sede).
+   */
+  if (!loc) {
+    const mainish = byParent.filter((b) => {
+      const ls = (b.locationSlug ?? "").trim();
+      return ls === "" || ls === "main";
+    });
+    if (mainish.length === 1) {
+      return find({ id: mainish[0].id });
+    }
+    return null;
+  }
 
   const match = byParent.find((b) => (b.locationSlug ?? "").trim() === loc);
   if (!match) return null;

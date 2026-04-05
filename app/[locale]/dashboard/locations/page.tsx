@@ -132,16 +132,16 @@ export default function LocationsPage() {
   };
 
   return (
-    <main className="min-h-screen bg-black text-white">
-      <nav className="border-b border-white/10 px-8 py-4 flex items-center gap-4">
-        <a href="/en/dashboard" className="text-gray-400 hover:text-white transition text-sm">← Dashboard</a>
-        <span className="text-white font-semibold">Locations</span>
+    <main className="min-h-screen">
+      <nav className="border-b border-[var(--callendra-border)] px-8 py-4 flex items-center gap-4">
+        <a href="/en/dashboard" className="text-[var(--callendra-text-secondary)] hover:opacity-90 transition text-sm">← Dashboard</a>
+        <span className="text-[var(--callendra-text-primary)] font-semibold">Locations</span>
       </nav>
       <div className="max-w-2xl mx-auto px-8 py-10">
         <div className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-2xl font-bold">Locations</h1>
-            <p className="text-gray-400 text-sm mt-1">Manage your business locations.</p>
+            <p className="text-[var(--callendra-text-secondary)] text-sm mt-1">Manage your business locations.</p>
           </div>
           <button onClick={() => {
             setShowAdd((v) => {
@@ -150,33 +150,33 @@ export default function LocationsPage() {
               return next;
             });
           }}
-            className="bg-white text-black px-4 py-2 rounded-full text-sm font-semibold hover:bg-gray-200 transition">
+            className="ui-btn-primary px-4 py-2 rounded-full text-sm font-semibold transition">
             + Add location
           </button>
         </div>
         {showAdd && (
-          <div className="border border-white/10 rounded-2xl p-6 mb-6 flex flex-col gap-3">
+          <div className="border border-[var(--callendra-border)] rounded-2xl p-6 mb-6 flex flex-col gap-3">
             <h2 className="font-semibold">New location</h2>
             <input type="text" placeholder="Brand parent slug *" value={parentSlug || defaultParent}
               onChange={(e) => setParentSlug(e.target.value)}
-              className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/30 transition" />
+              className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition" />
             <input type="text" placeholder="Location slug (e.g. plano) *" value={newLocationSlug}
               onChange={(e) => setNewLocationSlug(e.target.value)}
-              className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/30 transition" />
+              className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition" />
             <input type="text" placeholder="Location name *" value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/30 transition" />
+              className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition" />
             <input type="tel" placeholder="Phone (optional)" value={newPhone}
               onChange={(e) => setNewPhone(e.target.value)}
-              className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/30 transition" />
+              className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition" />
             {error && <p className="text-red-400 text-sm">{error}</p>}
             <div className="flex gap-3">
               <button onClick={handleAdd} disabled={loading}
-                className="flex-1 bg-white text-black py-3 rounded-xl text-sm font-semibold hover:bg-gray-200 transition disabled:opacity-50">
+                className="flex-1 ui-btn-primary py-3 rounded-xl text-sm font-semibold transition disabled:opacity-50">
                 {loading ? "Creating..." : "Create"}
               </button>
               <button onClick={() => setShowAdd(false)}
-                className="flex-1 border border-white/10 py-3 rounded-xl text-sm hover:bg-white/5 transition">
+                className="flex-1 border border-[var(--callendra-border)] py-3 rounded-xl text-sm hover:bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] transition">
                 Cancel
               </button>
             </div>
@@ -184,26 +184,26 @@ export default function LocationsPage() {
         )}
         <div className="flex flex-col gap-4">
           {locations.length === 0 ? (
-            <div className="border border-white/10 rounded-2xl p-8 text-center">
+            <div className="border border-[var(--callendra-border)] rounded-2xl p-8 text-center">
               <div className="text-4xl mb-3">🏪</div>
-            <p className="text-gray-400 text-sm">No locations yet</p>
+            <p className="text-[var(--callendra-text-secondary)] text-sm">No locations yet</p>
             </div>
           ) : (
             locations.map((loc) => {
               const n = countPeersForParent(locations, loc);
               const path = bookingPathForBusiness(loc.parentSlug, loc.slug, loc.locationSlug, n);
               return (
-              <div key={loc.id} className="border border-white/10 rounded-2xl p-6">
+              <div key={loc.id} className="border border-[var(--callendra-border)] rounded-2xl p-6">
                 {editing?.id === loc.id ? (
                   <div className="flex flex-col gap-3">
                     <div className="flex flex-col gap-1">
-                      <label className="text-xs text-gray-400">Location name</label>
+                      <label className="text-xs text-[var(--callendra-text-secondary)]">Location name</label>
                       <input type="text" value={editing.name}
                         onChange={(e) => setEditing({ ...editing, name: e.target.value })}
-                        className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/30 transition" />
+                        className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition" />
                     </div>
                     <div className="flex flex-col gap-1">
-                      <label className="text-xs text-gray-400">URL slug (location segment)</label>
+                      <label className="text-xs text-[var(--callendra-text-secondary)]">URL slug (location segment)</label>
                       <input
                         type="text"
                         value={editing.locationSlug ?? ""}
@@ -212,7 +212,7 @@ export default function LocationsPage() {
                           setEditing({ ...editing, locationSlug: e.target.value });
                         }}
                         placeholder="e.g. plano"
-                        className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/30 transition font-mono"
+                        className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition font-mono"
                       />
                       {normalizeLocationSlug(editing.locationSlug ?? "") !== normalizeLocationSlug(originalSlugSaved) && (
                         <p className="text-xs text-amber-400/90">
@@ -221,36 +221,36 @@ export default function LocationsPage() {
                       )}
                     </div>
                     <div className="flex flex-col gap-1">
-                      <label className="text-xs text-gray-400">Phone</label>
+                      <label className="text-xs text-[var(--callendra-text-secondary)]">Phone</label>
                       <input type="tel" value={editing.phone || ""}
                         onChange={(e) => setEditing({ ...editing, phone: e.target.value })}
                         placeholder="+1234567890"
-                        className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/30 transition" />
+                        className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition" />
                     </div>
                     <div className="flex flex-col gap-1">
-                      <label className="text-xs text-gray-400">Address</label>
+                      <label className="text-xs text-[var(--callendra-text-secondary)]">Address</label>
                       <input type="text" value={editing.address || ""}
                         onChange={(e) => setEditing({ ...editing, address: e.target.value })}
                         placeholder="123 Main St, City, TX"
-                        className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/30 transition" />
+                        className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition" />
                     </div>
                     <div className="flex flex-col gap-1">
-                      <label className="text-xs text-gray-400">🤖 AI Agent Phone Number (Retell)</label>
+                      <label className="text-xs text-[var(--callendra-text-secondary)]">🤖 AI Agent Phone Number (Retell)</label>
                       <input type="text" value={editing.retellPhoneNumber || ""}
                         onChange={(e) => setEditing({ ...editing, retellPhoneNumber: e.target.value })}
                         placeholder="+19453072113"
-                        className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/30 transition" />
+                        className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition" />
                     </div>
                     <div className="flex gap-3">
                       <button onClick={() => handleUpdate(loc.id)} disabled={loading}
-                        className="flex-1 bg-white text-black py-2 rounded-xl text-sm font-semibold">
+                        className="flex-1 ui-btn-primary py-2 rounded-xl text-sm font-semibold">
                         Save
                       </button>
                       <button onClick={() => {
                         setEditing(null);
                         setSlugEditedByUser(false);
                       }}
-                        className="flex-1 border border-white/10 py-2 rounded-xl text-sm">
+                        className="flex-1 border border-[var(--callendra-border)] py-2 rounded-xl text-sm">
                         Cancel
                       </button>
                     </div>
@@ -259,10 +259,10 @@ export default function LocationsPage() {
                   <div className="flex justify-between items-start">
                     <div>
                       <div className="font-semibold text-lg">{loc.name}</div>
-                      {loc.phone && <div className="text-sm text-gray-400 mt-1">📞 {loc.phone}</div>}
-                      {loc.address && <div className="text-sm text-gray-400 mt-1">📍 {loc.address}</div>}
-                      {loc.retellPhoneNumber && <div className="text-sm text-gray-400 mt-1">🤖 AI Agent: {loc.retellPhoneNumber}</div>}
-                      <div className="text-xs text-gray-600 mt-2 font-mono">{path}</div>
+                      {loc.phone && <div className="text-sm text-[var(--callendra-text-secondary)] mt-1">📞 {loc.phone}</div>}
+                      {loc.address && <div className="text-sm text-[var(--callendra-text-secondary)] mt-1">📍 {loc.address}</div>}
+                      {loc.retellPhoneNumber && <div className="text-sm text-[var(--callendra-text-secondary)] mt-1">🤖 AI Agent: {loc.retellPhoneNumber}</div>}
+                      <div className="text-xs text-[var(--callendra-text-secondary)] opacity-80 mt-2 font-mono">{path}</div>
                     </div>
                     <div className="flex gap-2">
                       <button onClick={() => {
@@ -270,11 +270,11 @@ export default function LocationsPage() {
                         setSlugEditedByUser(false);
                         setEditing({ ...loc, locationSlug: loc.locationSlug ?? "" });
                       }}
-                        className="text-sm text-gray-400 hover:text-white border border-white/10 px-3 py-1 rounded-full transition">
+                        className="text-sm text-[var(--callendra-text-secondary)] hover:opacity-90 border border-[var(--callendra-border)] px-3 py-1 rounded-full transition">
                         Edit
                       </button>
                       <button onClick={() => handleDelete(loc.id)}
-                        className="text-sm text-gray-400 hover:text-red-400 border border-white/10 px-3 py-1 rounded-full transition">
+                        className="text-sm text-[var(--callendra-text-secondary)] hover:text-red-400 border border-[var(--callendra-border)] px-3 py-1 rounded-full transition">
                         Delete
                       </button>
                     </div>

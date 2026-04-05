@@ -32,19 +32,19 @@ export default function ReportsPage() {
   const grandTotal = rows.reduce((sum, apt) => sum + (apt.service?.price ?? 0), 0);
 
   return (
-    <main className="min-h-screen bg-black text-white">
-      <nav className="border-b border-white/10 px-8 py-4 flex items-center gap-4">
-        <a href="/en/dashboard" className="text-gray-400 hover:text-white transition text-sm">← Dashboard</a>
-        <span className="text-white font-semibold">Consolidated reports</span>
+    <main className="min-h-screen">
+      <nav className="border-b border-[var(--callendra-border)] px-8 py-4 flex items-center gap-4">
+        <a href="/en/dashboard" className="text-[var(--callendra-text-secondary)] hover:opacity-90 transition text-sm">← Dashboard</a>
+        <span className="text-[var(--callendra-text-primary)] font-semibold">Consolidated reports</span>
       </nav>
       <div className="max-w-5xl mx-auto px-8 py-10">
         <h1 className="text-2xl font-bold mb-2">Today across all locations</h1>
-        <p className="text-gray-400 text-sm mb-8">Appointments scheduled for today at every active location.</p>
+        <p className="text-[var(--callendra-text-secondary)] text-sm mb-8">Appointments scheduled for today at every active location.</p>
 
-        {loading && <p className="text-gray-500 text-sm">Loading…</p>}
+        {loading && <p className="text-[var(--callendra-text-secondary)] opacity-80 text-sm">Loading…</p>}
         {error && <p className="text-red-400 text-sm">{error}</p>}
         {!loading && !error && rows.length === 0 && (
-          <div className="border border-white/10 rounded-2xl p-8 text-center text-gray-400 text-sm">No appointments today.</div>
+          <div className="border border-[var(--callendra-border)] rounded-2xl p-8 text-center text-[var(--callendra-text-secondary)] text-sm">No appointments today.</div>
         )}
 
         {!loading && rows.length > 0 && (
@@ -55,14 +55,14 @@ export default function ReportsPage() {
                 <div key={locationName}>
                   {/* Header sucursal */}
                   <div className="flex justify-between items-center mb-3">
-                    <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">{locationName}</h2>
-                    <span className="text-xs text-gray-500">{apts.length} appointment{apts.length !== 1 ? "s" : ""}</span>
+                    <h2 className="text-sm font-semibold text-[var(--callendra-text-secondary)] uppercase tracking-wider">{locationName}</h2>
+                    <span className="text-xs text-[var(--callendra-text-secondary)] opacity-80">{apts.length} appointment{apts.length !== 1 ? "s" : ""}</span>
                   </div>
 
                   {/* Tabla */}
-                  <div className="border border-white/10 rounded-2xl overflow-hidden">
+                  <div className="border border-[var(--callendra-border)] rounded-2xl overflow-hidden">
                     {/* Header cols */}
-                    <div className="grid grid-cols-12 px-5 py-2 border-b border-white/10 text-xs text-gray-500 uppercase tracking-wider">
+                    <div className="grid grid-cols-12 px-5 py-2 border-b border-[var(--callendra-border)] text-xs text-[var(--callendra-text-secondary)] opacity-80 uppercase tracking-wider">
                       <span className="col-span-2">Time</span>
                       <span className="col-span-3">Client</span>
                       <span className="col-span-4">Service</span>
@@ -72,19 +72,19 @@ export default function ReportsPage() {
 
                     {apts.map((apt, i) => (
                       <div key={apt.id}
-                        className={`grid grid-cols-12 px-5 py-3 text-sm items-center ${i !== apts.length - 1 ? "border-b border-white/5" : ""}`}>
-                        <span className="col-span-2 font-mono text-green-400 text-xs">{formatTime(apt.date)}</span>
+                        className={`grid grid-cols-12 px-5 py-3 text-sm items-center ${i !== apts.length - 1 ? "border-b border-[var(--callendra-border)]" : ""}`}>
+                        <span className="col-span-2 font-mono text-[var(--callendra-accent)] text-xs">{formatTime(apt.date)}</span>
                         <span className="col-span-3 font-medium truncate">{apt.clientName}</span>
-                        <span className="col-span-4 text-gray-300 truncate">{apt.service?.name ?? "—"}</span>
-                        <span className="col-span-2 text-gray-400 truncate">{apt.staff?.name ?? "—"}</span>
-                        <span className="col-span-1 text-right text-green-400">${apt.service?.price ?? 0}</span>
+                        <span className="col-span-4 text-[var(--callendra-text-secondary)] truncate">{apt.service?.name ?? "—"}</span>
+                        <span className="col-span-2 text-[var(--callendra-text-secondary)] truncate">{apt.staff?.name ?? "—"}</span>
+                        <span className="col-span-1 text-right text-[var(--callendra-accent)]">${apt.service?.price ?? 0}</span>
                       </div>
                     ))}
 
                     {/* Subtotal sucursal */}
-                    <div className="grid grid-cols-12 px-5 py-3 border-t border-white/10 bg-white/5 text-sm font-semibold">
-                      <span className="col-span-11 text-gray-400">Subtotal — {locationName}</span>
-                      <span className="col-span-1 text-right text-white">${locationTotal}</span>
+                    <div className="grid grid-cols-12 px-5 py-3 border-t border-[var(--callendra-border)] bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] text-sm font-semibold">
+                      <span className="col-span-11 text-[var(--callendra-text-secondary)]">Subtotal — {locationName}</span>
+                      <span className="col-span-1 text-right text-[var(--callendra-text-primary)]">${locationTotal}</span>
                     </div>
                   </div>
                 </div>
@@ -92,12 +92,12 @@ export default function ReportsPage() {
             })}
 
             {/* Gran total */}
-            <div className="border border-white/20 rounded-2xl px-5 py-4 flex justify-between items-center">
+            <div className="border border-[var(--callendra-border)] rounded-2xl px-5 py-4 flex justify-between items-center">
               <div>
-                <div className="text-sm font-semibold text-white">Grand total</div>
-                <div className="text-xs text-gray-500">{rows.length} appointments across {Object.keys(grouped).length} location{Object.keys(grouped).length !== 1 ? "s" : ""}</div>
+                <div className="text-sm font-semibold text-[var(--callendra-text-primary)]">Grand total</div>
+                <div className="text-xs text-[var(--callendra-text-secondary)] opacity-80">{rows.length} appointments across {Object.keys(grouped).length} location{Object.keys(grouped).length !== 1 ? "s" : ""}</div>
               </div>
-              <div className="text-2xl font-bold text-green-400">${grandTotal}</div>
+              <div className="text-2xl font-bold text-[var(--callendra-accent)]">${grandTotal}</div>
             </div>
           </div>
         )}

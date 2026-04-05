@@ -4,6 +4,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { resolveBusinessForBooking } from "@/lib/booking-business";
 import { loadLocationCatalog } from "@/lib/location-catalog";
 import { utcFromYmdAndTime } from "@/lib/business-timezone";
+import { findStaffOverlappingAppointment } from "@/lib/appointment-overlap";
 
 // Rate limiting en memoria: 3 reservaciones por día por IP
 const ipBookingCount = new Map<string, { count: number; date: string }>();
@@ -144,23 +145,16 @@ export async function POST(req: NextRequest) {
     const serviceDuration = service?.duration || 30;
     const appointmentEnd = new Date(appointmentDate.getTime() + serviceDuration * 60000);
 
-    const conflict = await prisma.appointment.findFirst({
-      where: {
-        staffId,
-        status: { not: "cancelled" },
-        AND: [
-          { date: { lt: appointmentEnd } },
-          { date: { gte: new Date(appointmentDate.getTime() - serviceDuration * 60000) } }
-        ]
-      },
-      include: { service: true }
+    const overlap = await findStaffOverlappingAppointment(prisma, {
+      staffId,
+      start: appointmentDate,
+      end: appointmentEnd,
     });
-
-    if (conflict) {
-      const conflictEnd = new Date(conflict.date.getTime() + (conflict.service?.duration || 30) * 60000);
-      if (conflict.date < appointmentEnd && conflictEnd > appointmentDate) {
-        return NextResponse.json({ error: "This time slot is no longer available. Please choose a different time." }, { status: 409 });
-      }
+    if (overlap) {
+      return NextResponse.json(
+        { error: "This time slot is no longer available. Please choose a different time." },
+        { status: 409 }
+      );
     }
 
     const appointment = await prisma.appointment.create({

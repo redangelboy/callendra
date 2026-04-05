@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import { bookingPathForBusiness } from "@/lib/booking-path";
 import { isMainBusinessFromPayload } from "@/lib/main-business";
+import { DashboardNewAppointmentModal } from "@/components/dashboard-new-appointment-modal";
 
 export default function DashboardPage() {
   const [session, setSession] = useState<any>(null);
@@ -25,8 +26,6 @@ export default function DashboardPage() {
   const [editUserForm, setEditUserForm] = useState({ name: "", role: "STAFF", staffId: "" });
   const [cancelRequestApt, setCancelRequestApt] = useState<any>(null);
   const [showNewAptModal, setShowNewAptModal] = useState(false);
-  const [newAptForm, setNewAptForm] = useState({ clientName: "", clientPhone: "", staffId: "", serviceId: "", date: "", time: "" });
-  const [newAptLoading, setNewAptLoading] = useState(false);
   const [serviceList, setServiceList] = useState<any[]>([]);
   const [cancelReason, setCancelReason] = useState("");
   const [cancelRequests, setCancelRequests] = useState<any[]>([]);
@@ -82,10 +81,11 @@ export default function DashboardPage() {
     }
 
     const locList = Array.isArray(locsData) ? locsData : [];
-    const multiLocation = locList.length > 1;
+    /** Varias filas Business bajo la misma cuenta (marcas o sucursales). */
+    const accountHasMultipleBusinessRows = locList.length > 1;
     const main = biz ? isMainBusinessFromPayload(biz) : false;
 
-    if (multiLocation && main) {
+    if (accountHasMultipleBusinessRows && main) {
       const locParam = locationFilter !== "all" ? `?locationId=${locationFilter}` : "";
       const cons = await fetch(`/api/appointments/consolidated${locParam}`);
       const c = await cons.json();
@@ -202,20 +202,31 @@ export default function DashboardPage() {
   const isMain = isMainBusinessFromPayload(business);
   const isOwner = !!(session?.ownerId);
   const userRole = session?.role || null; // "ADMIN" | "STAFF" | null (owner)
-  const multiLocation = locations.length > 1;
-  const singleLocation = locations.length === 1;
+  /** Varias filas en la cuenta (p. ej. El de Guanajuato + The Barber). */
+  const accountHasMultipleBusinessRows = locations.length > 1;
+  /**
+   * Sucursales de ESTA marca (mismo parentSlug canónico): 1 = solo sede / una fila de marca.
+   * No confundir con cuántas marcas tiene el owner en total.
+   */
+  const parentKey = business ? (business.parentSlug ?? business.slug) : "";
+  const locationsForThisBrand = locations.filter(
+    (loc: any) => (loc.parentSlug ?? loc.slug) === parentKey
+  );
+  const singleBrandLocation = locationsForThisBrand.length === 1;
+  /** En marca multi-sucursal, el main es catálogo/consolidado sin horarios de cita en esa fila. */
+  const showNewAppointmentQuickAction = singleBrandLocation || !isMain;
 
   const revenueToday = appointments.reduce((sum, a) => sum + (a.service?.price || 0), 0);
 
   if (!session) return (
-    <div className="min-h-screen bg-black flex items-center justify-center">
-      <div className="text-white animate-pulse">Loading...</div>
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="text-[var(--callendra-text-primary)] animate-pulse">Loading...</div>
     </div>
   );
 
   if (!business) return (
-    <div className="min-h-screen bg-black flex items-center justify-center">
-      <div className="text-white animate-pulse">Loading...</div>
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="text-[var(--callendra-text-primary)] animate-pulse">Loading...</div>
     </div>
   );
 
@@ -238,9 +249,10 @@ export default function DashboardPage() {
     { label: "Assigned staff", icon: "👥", href: "/en/dashboard/staff" },
     { label: "Assigned services", icon: "💈", href: "/en/dashboard/services" },
     { label: "Business profile", icon: "⚙️", href: "/en/dashboard/profile" },
+    ...(isOwner ? [{ label: "Consolidated reports", icon: "📊", href: "/en/dashboard/reports" }] as const : []),
   ];
 
-  /** Single business row: full catalog + operations in one place */
+  /** Una sola fila Business para esta marca: catálogo + operación en un solo lugar */
   const fullActionsSingle = [
     { label: "Manage staff", icon: "👤", href: "/en/dashboard/staff" },
     { label: "Manage services", icon: "✂️", href: "/en/dashboard/services" },
@@ -250,13 +262,14 @@ export default function DashboardPage() {
     { label: "Business profile", icon: "⚙️", href: "/en/dashboard/profile" },
     { label: "Locations", icon: "🏪", href: "/en/dashboard/locations" },
     { label: "Team access", icon: "🔑", href: "#team" },
+    ...(isOwner ? [{ label: "Consolidated reports", icon: "📊", href: "/en/dashboard/reports" }] : []),
   ];
 
   const isStaffUser = session?.userType === "staff";
 
   const staffAllowedLabels = ["Schedule", "Today's bookings", "Display screen", "Assigned staff", "Assigned services"];
 
-  const rawQuickActions = singleLocation
+  const rawQuickActions = singleBrandLocation
     ? fullActionsSingle
     : isMain
       ? mainActionsMulti
@@ -267,9 +280,9 @@ export default function DashboardPage() {
     : rawQuickActions;
 
   return (
-    <main className="min-h-screen bg-black text-white">
+    <main className="min-h-screen">
 
-      <nav className="border-b border-white/10 px-8 py-4 flex justify-between items-center">
+      <nav className="border-b border-[var(--callendra-border)] px-8 py-4 flex justify-between items-center">
         <span className="font-bold text-lg">Callendra</span>
         <div className="flex items-center gap-4">
           <div className="relative" ref={locationMenuRef}>
@@ -277,17 +290,17 @@ export default function DashboardPage() {
               type="button"
               disabled={switchingLocation}
               onClick={() => setLocationMenuOpen((o) => !o)}
-              className="flex items-center gap-2 text-sm text-gray-300 hover:text-white border border-white/10 rounded-lg px-3 py-2 transition disabled:opacity-50 bg-black"
+              className="flex items-center gap-2 text-sm text-[var(--callendra-text-secondary)] hover:opacity-90 border border-[var(--callendra-border)] rounded-lg px-3 py-2 transition disabled:opacity-50 bg-[var(--callendra-bg)]"
               aria-expanded={locationMenuOpen}
               aria-haspopup="listbox"
             >
               <span>{session.businessName}</span>
-              <span className="text-gray-500 text-xs" aria-hidden>▼</span>
+              <span className="text-[var(--callendra-text-secondary)] opacity-80 text-xs" aria-hidden>▼</span>
             </button>
             {locationMenuOpen && locations.length > 0 && (
               <ul
                 role="listbox"
-                className="absolute right-0 top-full z-50 mt-1 min-w-[220px] rounded-xl border border-white/10 bg-black py-1 shadow-lg"
+                className="absolute right-0 top-full z-50 mt-1 min-w-[220px] rounded-xl border border-[var(--callendra-border)] bg-[var(--callendra-bg)] py-1 shadow-lg"
               >
                 {locations.map((loc) => {
                   const active = loc.id === session.businessId;
@@ -299,8 +312,8 @@ export default function DashboardPage() {
                         onClick={() => handleSwitchLocation(loc.id)}
                         className={`w-full px-3 py-2.5 text-left text-sm transition ${
                           active
-                            ? "bg-white/10 text-white font-medium"
-                            : "text-gray-300 hover:bg-white/5 hover:text-white"
+                            ? "bg-[color-mix(in_srgb,var(--callendra-text-primary)_10%,var(--callendra-bg))] text-[var(--callendra-text-primary)] font-medium"
+                            : "text-[var(--callendra-text-secondary)] hover:bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] hover:opacity-90"
                         }`}
                       >
                         {loc.name}
@@ -313,7 +326,7 @@ export default function DashboardPage() {
           </div>
           <button
             onClick={() => fetch("/api/auth/logout", { method: "POST" }).then(() => window.location.href = "/en/login")}
-            className="text-sm text-gray-400 hover:text-white transition"
+            className="text-sm text-[var(--callendra-text-secondary)] hover:opacity-90 transition"
           >
             Sign out
           </button>
@@ -324,10 +337,10 @@ export default function DashboardPage() {
 
         <div className="mb-10">
           <h1 className="text-3xl font-bold">{greeting} 👋</h1>
-          <p className="text-gray-400 mt-1">
-            {singleLocation
+          <p className="text-[var(--callendra-text-secondary)] mt-1">
+            {singleBrandLocation
               ? `Here's what's happening with ${session.businessName} today.`
-              : multiLocation && isMain
+              : accountHasMultipleBusinessRows && isMain
                 ? "Overview of all your locations."
                 : `Here's what's happening with ${session.businessName} today.`}
           </p>
@@ -340,10 +353,10 @@ export default function DashboardPage() {
             { label: "Total appointments", value: stats.total, icon: "👥" },
             { label: "Revenue today", value: `$${revenueToday.toFixed(0)}`, icon: "💰" },
           ].map((stat) => (
-            <div key={stat.label} className="border border-white/10 rounded-2xl p-5">
+            <div key={stat.label} className="border border-[var(--callendra-border)] rounded-2xl p-5">
               <div className="text-2xl mb-2">{stat.icon}</div>
               <div className="text-2xl font-bold">{stat.value}</div>
-              <div className="text-xs text-gray-500 mt-1">{stat.label}</div>
+              <div className="text-xs text-[var(--callendra-text-secondary)] opacity-80 mt-1">{stat.label}</div>
             </div>
           ))}
         </div>
@@ -351,17 +364,17 @@ export default function DashboardPage() {
         <div className="mb-10">
           <h2 className="text-lg font-semibold mb-4">Quick actions</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {(isOwner || isStaffUser) && (
+            {(isOwner || isStaffUser) && showNewAppointmentQuickAction && (
               <button
-                onClick={() => { setShowNewAptModal(true); setNewAptForm({ clientName: "", clientPhone: "", staffId: "", serviceId: "", date: "", time: "" }); }}
-                className="border border-white/10 rounded-2xl p-5 text-left hover:border-white/30 transition block">
+                onClick={() => setShowNewAptModal(true)}
+                className="border border-[var(--callendra-border)] rounded-2xl p-5 text-left hover:border-[var(--callendra-accent)] transition block">
                 <div className="text-2xl mb-2">📋</div>
                 <div className="text-sm font-medium">New appointment</div>
               </button>
             )}
             {quickActions.map((action) => (
               <a key={action.label} href={action.href}
-                className="border border-white/10 rounded-2xl p-5 text-left hover:border-white/30 transition block">
+                className="border border-[var(--callendra-border)] rounded-2xl p-5 text-left hover:border-[var(--callendra-accent)] transition block">
                 <div className="text-2xl mb-2">{action.icon}</div>
                 <div className="text-sm font-medium">{action.label}</div>
               </a>
@@ -369,7 +382,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {multiLocation && isMain ? (
+        {accountHasMultipleBusinessRows && isMain ? (
           <div className="mb-10">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-lg font-semibold">Today&apos;s appointments</h2>
@@ -377,45 +390,45 @@ export default function DashboardPage() {
                 <select
                   value={locationFilter}
                   onChange={e => setLocationFilter(e.target.value)}
-                  className="bg-black border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none"
+                  className="bg-[var(--callendra-bg)] border border-[var(--callendra-border)] rounded-lg px-3 py-2 text-sm text-[var(--callendra-text-primary)] outline-none"
                 >
                   <option value="all">All locations</option>
                   {locations.filter((loc: any) => loc.locationSlug && loc.locationSlug !== "" && loc.locationSlug !== "main").map((loc: any) => (
                     <option key={loc.id} value={loc.id}>{loc.name}</option>
                   ))}
                 </select>
-                <a href="/en/dashboard/reports" className="text-sm text-gray-400 hover:text-white transition border border-white/10 px-4 py-2 rounded-full">
+                <a href="/en/dashboard/reports" className="text-sm text-[var(--callendra-text-secondary)] hover:opacity-90 transition border border-[var(--callendra-border)] px-4 py-2 rounded-full">
                   Reports →
                 </a>
               </div>
             </div>
             {appointments.length === 0 ? (
-              <div className="border border-white/10 rounded-2xl p-8 text-center">
+              <div className="border border-[var(--callendra-border)] rounded-2xl p-8 text-center">
                 <div className="text-4xl mb-3">📅</div>
-                <p className="text-gray-400 text-sm">No appointments today</p>
+                <p className="text-[var(--callendra-text-secondary)] text-sm">No appointments today</p>
               </div>
             ) : (
               <div className="flex flex-col gap-3">
                 {appointments.map((apt: any) => (
-                  <div key={apt.id} className="border border-white/10 rounded-2xl px-6 py-4 flex justify-between items-center hover:border-white/20 transition">
+                  <div key={apt.id} className="border border-[var(--callendra-border)] rounded-2xl px-6 py-4 flex justify-between items-center hover:border-[var(--callendra-border)] transition">
                     <div className="flex items-center gap-4">
-                      <div className={`text-2xl font-mono font-bold w-16 ${apt.status === "cancel_requested" ? "text-yellow-400" : "text-green-400"}`}>
+                      <div className={`text-2xl font-mono font-bold w-16 ${apt.status === "cancel_requested" ? "text-yellow-400" : "text-[var(--callendra-accent)]"}`}>
                         {formatTime(apt.date)}
                       </div>
                       <div>
                         <div className="font-semibold">{apt.clientName}</div>
-                        <div className="text-sm text-gray-400">{apt.service?.name} · with {apt.staff?.name}</div>
-                        <div className="text-xs text-gray-600 mt-0.5">{apt.business?.name}</div>
+                        <div className="text-sm text-[var(--callendra-text-secondary)]">{apt.service?.name} · with {apt.staff?.name}</div>
+                        <div className="text-xs text-[var(--callendra-text-secondary)] opacity-80 mt-0.5">{apt.business?.name}</div>
                         {apt.status === "cancel_requested" && (
                           <div className="text-xs text-yellow-400 mt-0.5">⏳ Cancel requested</div>
                         )}
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="text-sm font-semibold text-green-400">${apt.service?.price}</span>
+                      <span className="text-sm font-semibold text-[var(--callendra-accent)]">${apt.service?.price}</span>
                       <button
                         onClick={() => handleCancel(apt.id)}
-                        className="text-xs text-gray-600 hover:text-red-400 transition border border-white/10 px-3 py-1 rounded-full"
+                        className="text-xs text-[var(--callendra-text-secondary)] opacity-80 hover:text-red-400 transition border border-[var(--callendra-border)] px-3 py-1 rounded-full"
                       >Cancel</button>
                     </div>
                   </div>
@@ -428,48 +441,48 @@ export default function DashboardPage() {
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-lg font-semibold">Today&apos;s appointments</h2>
               <a href={bookingHref} target="_blank"
-                className="text-sm text-gray-400 hover:text-white transition border border-white/10 px-4 py-2 rounded-full">
+                className="text-sm text-[var(--callendra-text-secondary)] hover:opacity-90 transition border border-[var(--callendra-border)] px-4 py-2 rounded-full">
                 🔗 Booking link
               </a>
             </div>
 
             {appointments.length === 0 ? (
-              <div className="border border-white/10 rounded-2xl p-8 text-center">
+              <div className="border border-[var(--callendra-border)] rounded-2xl p-8 text-center">
                 <div className="text-4xl mb-3">📅</div>
-                <p className="text-gray-400 text-sm">No appointments yet for today</p>
+                <p className="text-[var(--callendra-text-secondary)] text-sm">No appointments yet for today</p>
                 <a href={bookingHref} target="_blank"
-                  className="text-xs text-gray-600 hover:text-gray-400 transition mt-2 block">
+                  className="text-xs text-[var(--callendra-text-secondary)] opacity-80 hover:text-[var(--callendra-text-secondary)] transition mt-2 block">
                   Share your booking link to get started
                 </a>
               </div>
             ) : (
               <div className="flex flex-col gap-3">
                 {appointments.map((apt) => (
-                  <div key={apt.id} className="border border-white/10 rounded-2xl px-6 py-4 flex justify-between items-center hover:border-white/20 transition">
+                  <div key={apt.id} className="border border-[var(--callendra-border)] rounded-2xl px-6 py-4 flex justify-between items-center hover:border-[var(--callendra-border)] transition">
                     <div className="flex items-center gap-4">
-                      <div className={`text-2xl font-mono font-bold w-16 ${apt.status === 'cancel_requested' ? 'text-yellow-400' : 'text-green-400'}`}>
+                      <div className={`text-2xl font-mono font-bold w-16 ${apt.status === 'cancel_requested' ? 'text-yellow-400' : 'text-[var(--callendra-accent)]'}`}>
                         {formatTime(apt.date)}
                       </div>
                       <div>
                         <div className="font-semibold">{apt.clientName}</div>
-                        <div className="text-sm text-gray-400">{apt.service?.name} · with {apt.staff?.name}</div>
+                        <div className="text-sm text-[var(--callendra-text-secondary)]">{apt.service?.name} · with {apt.staff?.name}</div>
                         {apt.status === 'cancel_requested' && (
                           <div className="text-xs text-yellow-400 mt-0.5">⏳ Cancel requested</div>
                         )}
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="text-sm font-semibold text-green-400">${apt.service?.price}</span>
+                      <span className="text-sm font-semibold text-[var(--callendra-accent)]">${apt.service?.price}</span>
                       <button
                         onClick={() => handleEdit(apt)}
-                        className="text-xs text-gray-400 hover:text-white transition border border-white/10 px-3 py-1 rounded-full"
+                        className="text-xs text-[var(--callendra-text-secondary)] hover:opacity-90 transition border border-[var(--callendra-border)] px-3 py-1 rounded-full"
                       >
                         Edit
                       </button>
                       {!isStaffUser ? (
                         <button
                           onClick={() => handleCancel(apt.id)}
-                          className="text-xs text-gray-600 hover:text-red-400 transition border border-white/10 px-3 py-1 rounded-full"
+                          className="text-xs text-[var(--callendra-text-secondary)] opacity-80 hover:text-red-400 transition border border-[var(--callendra-border)] px-3 py-1 rounded-full"
                         >
                           Cancel
                         </button>
@@ -480,7 +493,7 @@ export default function DashboardPage() {
                       ) : (
                         <button
                           onClick={() => { setCancelRequestApt(apt); setCancelReason(""); }}
-                          className="text-xs text-gray-600 hover:text-yellow-400 transition border border-white/10 px-3 py-1 rounded-full"
+                          className="text-xs text-[var(--callendra-text-secondary)] opacity-80 hover:text-yellow-400 transition border border-[var(--callendra-border)] px-3 py-1 rounded-full"
                         >
                           Request cancel
                         </button>
@@ -495,39 +508,39 @@ export default function DashboardPage() {
 
       </div>
     {editingApt && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 border border-white/10 rounded-2xl p-6 w-full max-w-md flex flex-col gap-4">
+        <div className="fixed inset-0 bg-[color-mix(in_srgb,var(--callendra-text-primary)_72%,var(--callendra-bg))] backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_10%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-2xl p-6 w-full max-w-md flex flex-col gap-4">
             <h2 className="text-lg font-semibold">Edit Appointment</h2>
-            <div className="text-sm text-gray-400">{editingApt.clientName} — {editingApt.service?.name}</div>
+            <div className="text-sm text-[var(--callendra-text-secondary)]">{editingApt.clientName} — {editingApt.service?.name}</div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-gray-400">Date</label>
+              <label className="text-xs text-[var(--callendra-text-secondary)]">Date</label>
               <input type="date" value={editForm.date}
                 onChange={(e) => setEditForm({ ...editForm, date: e.target.value })}
-                className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/30 transition" />
+                className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition" />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-gray-400">Time</label>
+              <label className="text-xs text-[var(--callendra-text-secondary)]">Time</label>
               <input type="time" value={editForm.time}
                 onChange={(e) => setEditForm({ ...editForm, time: e.target.value })}
-                className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/30 transition" />
+                className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition" />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-gray-400">Barber</label>
+              <label className="text-xs text-[var(--callendra-text-secondary)]">Barber</label>
               <select value={editForm.staffId}
                 onChange={(e) => setEditForm({ ...editForm, staffId: e.target.value })}
-                className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/30 transition">
+                className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition">
                 {staffList.map((s: any) => (
-                  <option key={s.id} value={s.id} className="bg-gray-900">{s.name}</option>
+                  <option key={s.id} value={s.id} className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_10%,var(--callendra-bg))]">{s.name}</option>
                 ))}
               </select>
             </div>
             <div className="flex gap-3 mt-2">
               <button onClick={handleEditSave}
-                className="flex-1 bg-white text-black py-3 rounded-xl text-sm font-semibold hover:bg-gray-200 transition">
+                className="flex-1 ui-btn-primary py-3 rounded-xl text-sm font-semibold transition">
                 Save
               </button>
               <button onClick={() => setEditingApt(null)}
-                className="flex-1 border border-white/10 py-3 rounded-xl text-sm hover:bg-white/5 transition">
+                className="flex-1 border border-[var(--callendra-border)] py-3 rounded-xl text-sm hover:bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] transition">
                 Cancel
               </button>
             </div>
@@ -542,10 +555,10 @@ export default function DashboardPage() {
             <h2 className="text-lg font-semibold mb-4 text-yellow-400">⚠️ Cancel requests ({cancelRequests.length})</h2>
             <div className="flex flex-col gap-3">
               {cancelRequests.map((apt: any) => (
-                <div key={apt.id} className="flex justify-between items-center border border-white/10 rounded-xl px-5 py-3">
+                <div key={apt.id} className="flex justify-between items-center border border-[var(--callendra-border)] rounded-xl px-5 py-3">
                   <div>
                     <div className="font-semibold">{apt.clientName} — {apt.service?.name}</div>
-                    <div className="text-sm text-gray-400">with {apt.staff?.name} · {new Date(apt.date).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}</div>
+                    <div className="text-sm text-[var(--callendra-text-secondary)]">with {apt.staff?.name} · {new Date(apt.date).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}</div>
                     <div className="text-sm text-yellow-300 mt-1">Reason: {apt.cancelReason}</div>
                   </div>
                   <div className="flex gap-2">
@@ -561,7 +574,7 @@ export default function DashboardPage() {
                         await fetch("/api/appointments", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: apt.id, status: "confirmed" }) });
                         fetchData();
                       }}
-                      className="text-xs text-green-400 border border-green-400/30 px-3 py-1 rounded-full hover:bg-green-400/10 transition"
+                      className="text-xs text-[var(--callendra-accent)] border border-green-400/30 px-3 py-1 rounded-full hover:bg-green-400/10 transition"
                     >Keep</button>
                   </div>
                 </div>
@@ -578,39 +591,39 @@ export default function DashboardPage() {
             <h2 className="text-lg font-semibold">Team access</h2>
             <button
               onClick={() => { setShowTeamModal(true); setTeamError(""); setNewUser({ name: "", email: "", password: "", role: "STAFF", staffId: "" }); }}
-              className="text-sm border border-white/10 px-4 py-2 rounded-full hover:bg-white/5 transition"
+              className="text-sm border border-[var(--callendra-border)] px-4 py-2 rounded-full hover:bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] transition"
             >
               + Add member
             </button>
           </div>
 
           {teamUsers.length === 0 ? (
-            <div className="border border-white/10 rounded-2xl p-8 text-center">
+            <div className="border border-[var(--callendra-border)] rounded-2xl p-8 text-center">
               <div className="text-4xl mb-3">🔑</div>
-              <p className="text-gray-400 text-sm">No team members yet</p>
-              <p className="text-gray-600 text-xs mt-1">Add staff or admins so they can access the dashboard</p>
+              <p className="text-[var(--callendra-text-secondary)] text-sm">No team members yet</p>
+              <p className="text-[var(--callendra-text-secondary)] opacity-80 text-xs mt-1">Add staff or admins so they can access the dashboard</p>
             </div>
           ) : (
             <div className="flex flex-col gap-3">
               {teamUsers.map((u: any) => (
-                <div key={u.id} className="border border-white/10 rounded-2xl px-6 py-4 flex justify-between items-center">
+                <div key={u.id} className="border border-[var(--callendra-border)] rounded-2xl px-6 py-4 flex justify-between items-center">
                   <div>
                     <div className="font-semibold">{u.name}</div>
-                    <div className="text-sm text-gray-400">{u.email} · {u.staff?.name ? `Linked to ${u.staff.name}` : "No barber linked"}</div>
+                    <div className="text-sm text-[var(--callendra-text-secondary)]">{u.email} · {u.staff?.name ? `Linked to ${u.staff.name}` : "No barber linked"}</div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className={`text-xs px-3 py-1 rounded-full border ${u.role === "ADMIN" ? "border-blue-500/30 text-blue-400" : "border-white/10 text-gray-400"}`}>
+                    <span className={`text-xs px-3 py-1 rounded-full border ${u.role === "ADMIN" ? "border-blue-500/30 text-blue-400" : "border-[var(--callendra-border)] text-[var(--callendra-text-secondary)]"}`}>
                       {u.role}
                     </span>
                     <button
                       onClick={() => { setEditingUser(u); setEditUserForm({ name: u.name, role: u.role, staffId: u.staffId || "" }); }}
-                      className="text-xs text-gray-400 hover:text-white transition border border-white/10 px-3 py-1 rounded-full"
+                      className="text-xs text-[var(--callendra-text-secondary)] hover:opacity-90 transition border border-[var(--callendra-border)] px-3 py-1 rounded-full"
                     >
                       Edit
                     </button>
                     <button
                       onClick={async () => { await fetch("/api/staff-users", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: u.id }) }); fetchData(); }}
-                      className="text-xs text-gray-600 hover:text-red-400 transition border border-white/10 px-3 py-1 rounded-full"
+                      className="text-xs text-[var(--callendra-text-secondary)] opacity-80 hover:text-red-400 transition border border-[var(--callendra-border)] px-3 py-1 rounded-full"
                     >
                       Remove
                     </button>
@@ -624,25 +637,25 @@ export default function DashboardPage() {
 
       {/* Modal editar team member */}
       {editingUser && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 border border-white/10 rounded-2xl p-6 w-full max-w-md flex flex-col gap-4">
+        <div className="fixed inset-0 bg-[color-mix(in_srgb,var(--callendra-text-primary)_72%,var(--callendra-bg))] backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_10%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-2xl p-6 w-full max-w-md flex flex-col gap-4">
             <h2 className="text-lg font-semibold">Edit team member</h2>
-            <div className="text-sm text-gray-400">{editingUser.email}</div>
+            <div className="text-sm text-[var(--callendra-text-secondary)]">{editingUser.email}</div>
             <input placeholder="Full name" value={editUserForm.name}
               onChange={e => setEditUserForm({ ...editUserForm, name: e.target.value })}
-              className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/30" />
+              className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)]" />
             <select value={editUserForm.role}
               onChange={e => setEditUserForm({ ...editUserForm, role: e.target.value })}
-              className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/30">
-              <option value="STAFF" className="bg-gray-900">Staff — sees own appointments only</option>
-              <option value="ADMIN" className="bg-gray-900">Admin — manages all appointments</option>
+              className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)]">
+              <option value="STAFF" className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_10%,var(--callendra-bg))]">Staff — sees own appointments only</option>
+              <option value="ADMIN" className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_10%,var(--callendra-bg))]">Admin — manages all appointments</option>
             </select>
             <select value={editUserForm.staffId}
               onChange={e => setEditUserForm({ ...editUserForm, staffId: e.target.value })}
-              className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/30">
-              <option value="" className="bg-gray-900">No barber linked</option>
+              className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)]">
+              <option value="" className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_10%,var(--callendra-bg))]">No barber linked</option>
               {staffList.map((s: any) => (
-                <option key={s.id} value={s.id} className="bg-gray-900">{s.name}</option>
+                <option key={s.id} value={s.id} className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_10%,var(--callendra-bg))]">{s.name}</option>
               ))}
             </select>
             <div className="flex gap-3 mt-2">
@@ -656,10 +669,10 @@ export default function DashboardPage() {
                   const data = await res.json();
                   if (data.success) { setEditingUser(null); fetchData(); }
                 }}
-                className="flex-1 bg-white text-black py-3 rounded-xl text-sm font-semibold hover:bg-gray-200 transition"
+                className="flex-1 ui-btn-primary py-3 rounded-xl text-sm font-semibold transition"
               >Save</button>
               <button onClick={() => setEditingUser(null)}
-                className="flex-1 border border-white/10 py-3 rounded-xl text-sm hover:bg-white/5 transition">
+                className="flex-1 border border-[var(--callendra-border)] py-3 rounded-xl text-sm hover:bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] transition">
                 Cancel
               </button>
             </div>
@@ -669,30 +682,30 @@ export default function DashboardPage() {
 
       {/* Modal crear team member */}
       {showTeamModal && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 border border-white/10 rounded-2xl p-6 w-full max-w-md flex flex-col gap-4">
+        <div className="fixed inset-0 bg-[color-mix(in_srgb,var(--callendra-text-primary)_72%,var(--callendra-bg))] backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_10%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-2xl p-6 w-full max-w-md flex flex-col gap-4">
             <h2 className="text-lg font-semibold">Add team member</h2>
             <input placeholder="Full name" value={newUser.name}
               onChange={e => setNewUser({ ...newUser, name: e.target.value })}
-              className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/30" />
+              className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)]" />
             <input type="email" placeholder="Email" value={newUser.email}
               onChange={e => setNewUser({ ...newUser, email: e.target.value })}
-              className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/30" />
+              className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)]" />
             <input type="password" placeholder="Password" value={newUser.password}
               onChange={e => setNewUser({ ...newUser, password: e.target.value })}
-              className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/30" />
+              className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)]" />
             <select value={newUser.role}
               onChange={e => setNewUser({ ...newUser, role: e.target.value })}
-              className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/30">
-              <option value="STAFF" className="bg-gray-900">Staff — sees own appointments only</option>
-              <option value="ADMIN" className="bg-gray-900">Admin — manages all appointments</option>
+              className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)]">
+              <option value="STAFF" className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_10%,var(--callendra-bg))]">Staff — sees own appointments only</option>
+              <option value="ADMIN" className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_10%,var(--callendra-bg))]">Admin — manages all appointments</option>
             </select>
             <select value={newUser.staffId}
               onChange={e => setNewUser({ ...newUser, staffId: e.target.value })}
-              className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/30">
-              <option value="" className="bg-gray-900">Link to barber (optional)</option>
+              className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)]">
+              <option value="" className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_10%,var(--callendra-bg))]">Link to barber (optional)</option>
               {staffList.map((s: any) => (
-                <option key={s.id} value={s.id} className="bg-gray-900">{s.name}</option>
+                <option key={s.id} value={s.id} className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_10%,var(--callendra-bg))]">{s.name}</option>
               ))}
             </select>
             {teamError && <p className="text-red-400 text-sm">{teamError}</p>}
@@ -712,12 +725,12 @@ export default function DashboardPage() {
                   else setTeamError(data.error || "Error creating user");
                   setTeamLoading(false);
                 }}
-                className="flex-1 bg-white text-black py-3 rounded-xl text-sm font-semibold hover:bg-gray-200 transition disabled:opacity-50"
+                className="flex-1 ui-btn-primary py-3 rounded-xl text-sm font-semibold transition disabled:opacity-50"
               >
                 {teamLoading ? "Creating..." : "Create"}
               </button>
               <button onClick={() => setShowTeamModal(false)}
-                className="flex-1 border border-white/10 py-3 rounded-xl text-sm hover:bg-white/5 transition">
+                className="flex-1 border border-[var(--callendra-border)] py-3 rounded-xl text-sm hover:bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] transition">
                 Cancel
               </button>
             </div>
@@ -727,18 +740,18 @@ export default function DashboardPage() {
 
       {/* Modal solicitud de cancelación - solo staff */}
       {cancelRequestApt && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 border border-white/10 rounded-2xl p-6 w-full max-w-md flex flex-col gap-4">
+        <div className="fixed inset-0 bg-[color-mix(in_srgb,var(--callendra-text-primary)_72%,var(--callendra-bg))] backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_10%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-2xl p-6 w-full max-w-md flex flex-col gap-4">
             <h2 className="text-lg font-semibold">Request cancellation</h2>
-            <div className="text-sm text-gray-400">{cancelRequestApt.clientName} — {cancelRequestApt.service?.name}</div>
+            <div className="text-sm text-[var(--callendra-text-secondary)]">{cancelRequestApt.clientName} — {cancelRequestApt.service?.name}</div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-gray-400">Reason for cancellation</label>
+              <label className="text-xs text-[var(--callendra-text-secondary)]">Reason for cancellation</label>
               <textarea
                 value={cancelReason}
                 onChange={e => setCancelReason(e.target.value)}
                 placeholder="Explain why this appointment needs to be cancelled..."
                 rows={3}
-                className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/30 transition resize-none"
+                className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition resize-none"
               />
             </div>
             <div className="flex gap-3 mt-2">
@@ -758,95 +771,29 @@ export default function DashboardPage() {
                 Send request
               </button>
               <button onClick={() => setCancelRequestApt(null)}
-                className="flex-1 border border-white/10 py-3 rounded-xl text-sm hover:bg-white/5 transition">
+                className="flex-1 border border-[var(--callendra-border)] py-3 rounded-xl text-sm hover:bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] transition">
                 Back
               </button>
             </div>
           </div>
         </div>
       )}
-      {/* Modal New Appointment */}
-      {showNewAptModal && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 border border-white/10 rounded-2xl p-6 w-full max-w-md">
-            <h2 className="text-lg font-semibold mb-4">New Appointment</h2>
-            <div className="space-y-3">
-              <input
-                placeholder="Client name *"
-                value={newAptForm.clientName}
-                onChange={e => setNewAptForm({ ...newAptForm, clientName: e.target.value })}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm text-white"
-              />
-              <input
-                placeholder="Client phone"
-                value={newAptForm.clientPhone}
-                onChange={e => setNewAptForm({ ...newAptForm, clientPhone: e.target.value })}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm text-white"
-              />
-              <select
-                value={newAptForm.staffId}
-                onChange={e => setNewAptForm({ ...newAptForm, staffId: e.target.value })}
-                className="w-full bg-gray-900 border border-white/10 rounded-xl px-4 py-2 text-sm text-white"
-              >
-                <option value="">Select barber *</option>
-                {staffList.map((s: any) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
-              <select
-                value={newAptForm.serviceId}
-                onChange={e => setNewAptForm({ ...newAptForm, serviceId: e.target.value })}
-                className="w-full bg-gray-900 border border-white/10 rounded-xl px-4 py-2 text-sm text-white"
-              >
-                <option value="">Select service *</option>
-                {serviceList.map((s: any) => (
-                  <option key={s.id} value={s.id}>{s.name} — ${s.price}</option>
-                ))}
-              </select>
-              <input
-                type="date"
-                value={newAptForm.date}
-                onChange={e => setNewAptForm({ ...newAptForm, date: e.target.value })}
-                className="w-full bg-gray-900 border border-white/10 rounded-xl px-4 py-2 text-sm text-white"
-              />
-              <input
-                type="time"
-                value={newAptForm.time}
-                onChange={e => setNewAptForm({ ...newAptForm, time: e.target.value })}
-                className="w-full bg-gray-900 border border-white/10 rounded-xl px-4 py-2 text-sm text-white"
-              />
-
-            </div>
-            <div className="flex gap-3 mt-5">
-              <button
-                disabled={newAptLoading}
-                onClick={async () => {
-                  if (!newAptForm.clientName || !newAptForm.staffId || !newAptForm.serviceId || !newAptForm.date || !newAptForm.time) return;
-                  setNewAptLoading(true);
-                  const res = await fetch("/api/appointments", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(newAptForm),
-                  });
-                  setNewAptLoading(false);
-                  if (res.ok) {
-                    setShowNewAptModal(false);
-                    setNewAptForm({ clientName: "", clientPhone: "", staffId: "", serviceId: "", date: "", time: "" });
-                    fetchData();
-                  }
-                }}
-                className="flex-1 bg-indigo-600 text-white py-3 rounded-xl text-sm font-semibold hover:bg-indigo-500 transition disabled:opacity-50"
-              >
-                {newAptLoading ? "Saving..." : "Create appointment"}
-              </button>
-              <button onClick={() => setShowNewAptModal(false)}
-                className="flex-1 border border-white/10 py-3 rounded-xl text-sm hover:bg-white/5 transition">
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <DashboardNewAppointmentModal
+        open={showNewAptModal}
+        onClose={() => setShowNewAptModal(false)}
+        business={
+          business
+            ? {
+                slug: business.slug,
+                parentSlug: business.parentSlug,
+                locationSlug: business.locationSlug,
+              }
+            : null
+        }
+        staffList={staffList}
+        serviceList={serviceList}
+        onCreated={fetchData}
+      />
     </main>
   );
 }

@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import type { Prisma } from "@prisma/client";
 import { getMainBusinessIdForOwner } from "@/lib/main-business";
+import { isValidThemeId } from "@/lib/callendra-themes";
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL!
@@ -46,6 +48,12 @@ export async function GET(req: NextRequest) {
   }
 }
 
+function strOrNull(v: unknown): string | null {
+  if (v == null) return null;
+  const s = String(v).trim();
+  return s === "" ? null : s;
+}
+
 export async function PATCH(req: NextRequest) {
   try {
     const session = req.cookies.get("session")?.value;
@@ -53,11 +61,37 @@ export async function PATCH(req: NextRequest) {
     const parsed = JSON.parse(session);
     const { businessId, ownerId } = parsed as { businessId: string; ownerId?: string };
     const body = await req.json();
-    const { name, phone, address, primaryColor, secondaryColor, logo, retellPhoneNumber, notificationPhone } = body;
+    const { name, phone, address, logo, retellPhoneNumber, notificationPhone, themePreset } = body;
+
+    const themeUpdate =
+      themePreset !== undefined && isValidThemeId(String(themePreset))
+        ? String(themePreset)
+        : undefined;
+
+    const data: Prisma.BusinessUpdateInput = {};
+
+    if ("name" in body && name !== undefined && name !== null) {
+      const trimmed = String(name).trim();
+      if (!trimmed) {
+        return NextResponse.json({ error: "Business name cannot be empty" }, { status: 400 });
+      }
+      data.name = trimmed;
+    }
+    if ("phone" in body) data.phone = strOrNull(phone);
+    if ("address" in body) data.address = strOrNull(address);
+    if ("logo" in body) data.logo = strOrNull(logo);
+    if ("retellPhoneNumber" in body) data.retellPhoneNumber = strOrNull(retellPhoneNumber);
+    if (themeUpdate !== undefined) data.themePreset = themeUpdate;
+
+    if (Object.keys(data).length === 0) {
+      return NextResponse.json({ error: "No fields to update" }, { status: 400 });
+    }
+
     const business = await prisma.business.update({
       where: { id: businessId },
-      data: { name, phone, address, primaryColor, secondaryColor, logo, retellPhoneNumber: retellPhoneNumber || null },
+      data,
     });
+
     if (ownerId && "notificationPhone" in body) {
       const current = await prisma.business.findUnique({ where: { id: businessId }, select: { ownerId: true } });
       if (current?.ownerId === ownerId) {
@@ -70,7 +104,14 @@ export async function PATCH(req: NextRequest) {
     }
     return NextResponse.json(business);
   } catch (error) {
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    console.error("PATCH /api/business", error);
+    const message = error instanceof Error ? error.message : "Server error";
+    const expose =
+      process.env.NODE_ENV === "development" || process.env.VERCEL_ENV === "preview";
+    return NextResponse.json(
+      { error: expose ? message : "Server error" },
+      { status: 500 }
+    );
   }
 }
 
