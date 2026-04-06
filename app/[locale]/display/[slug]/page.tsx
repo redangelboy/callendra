@@ -186,7 +186,7 @@ function DisplayPageInner() {
                 name={s.name}
                 photo={s.photo}
                 size="display"
-                className="!w-14 !h-14 !min-w-[3.5rem] !min-h-[3.5rem] !text-lg sm:!w-20 sm:!h-20 sm:!min-w-[5rem] sm:!min-h-[5rem] sm:!text-2xl lg:!w-32 lg:!h-32 lg:!min-w-[8rem] lg:!min-h-[8rem] lg:!text-3xl"
+                className="!w-14 !h-14 !min-w-[3.5rem] !min-h-[3.5rem] !text-sm sm:!w-16 sm:!h-16 sm:!min-w-[4rem] sm:!min-h-[4rem] sm:!text-base lg:!w-24 lg:!h-24 lg:!min-w-[6rem] lg:!min-h-[6rem] lg:!text-xl"
               />
               <div className="min-w-0 flex-1">
                 <div className="font-bold text-base sm:text-lg truncate sm:whitespace-normal sm:break-words">{s.name}</div>

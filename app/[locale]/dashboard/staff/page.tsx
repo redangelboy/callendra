@@ -180,11 +180,11 @@ export default function StaffPage() {
                 <div className="flex justify-between items-start gap-4">
                   <div className="flex items-center gap-3">
                     <label className="cursor-pointer relative group">
-                      <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-[var(--callendra-border)] bg-[color-mix(in_srgb,var(--callendra-text-primary)_10%,var(--callendra-bg))] flex items-center justify-center">
+                      <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-[var(--callendra-border)] bg-[color-mix(in_srgb,var(--callendra-text-primary)_10%,var(--callendra-bg))] flex items-center justify-center">
                         {s.photo ? (
                           <img src={s.photo} alt={s.name} className="w-full h-full object-cover" />
                         ) : (
-                          <span className="text-sm font-semibold">{s.name.charAt(0).toUpperCase()}</span>
+                          <span className="text-xs font-semibold">{s.name.charAt(0).toUpperCase()}</span>
                         )}
                       </div>
                       {isMain && (

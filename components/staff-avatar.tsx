@@ -1,10 +1,10 @@
 type StaffAvatarSize = "book" | "display";
 
 const SIZE: Record<StaffAvatarSize, string> = {
-  /** Lista en booking público */
-  book: "w-20 h-20 min-w-[5rem] min-h-[5rem] text-xl",
-  /** Tarjetas en pantalla display */
-  display: "w-32 h-32 min-w-[8rem] min-h-[8rem] text-3xl",
+  /** Lista en booking público / modal */
+  book: "w-16 h-16 min-w-[4rem] min-h-[4rem] text-base",
+  /** Pantalla display por defecto */
+  display: "w-24 h-24 min-w-[6rem] min-h-[6rem] text-xl",
 };
 
 /**
