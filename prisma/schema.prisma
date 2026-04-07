@@ -156,3 +156,14 @@ model StaffUser {
   business   Business @relation(fields: [businessId], references: [id])
   staff      Staff?   @relation(fields: [staffId], references: [id])
 }
+
+model InviteCode {
+  id        String    @id @default(cuid())
+  code      String    @unique
+  email     String?
+  usedAt    DateTime?
+  usedBy    String?
+  createdAt DateTime  @default(now())
+  expiresAt DateTime?
+  active    Boolean   @default(true)
+}

@@ -2,23 +2,49 @@ import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import bcrypt from "bcryptjs";
+import { normalizeInviteCode, validateInviteRow } from "@/lib/invite-code";
 
 const adapter = new PrismaPg({
-  connectionString: process.env.DATABASE_URL!
+  connectionString: process.env.DATABASE_URL!,
 });
 const prisma = new PrismaClient({ adapter });
 
+const INVITE_MSG = "Invalid or expired invite code";
+
 export async function POST(req: NextRequest) {
   try {
-    const { businessName, email, password, ownerName, phone } = await req.json();
+    const body = await req.json();
+    const {
+      businessName,
+      email,
+      password,
+      ownerName,
+      phone,
+      inviteCode: rawInvite,
+    } = body;
+
+    const inviteCode = typeof rawInvite === "string" ? normalizeInviteCode(rawInvite) : "";
 
     if (!businessName || !email || !password || !ownerName) {
-      return NextResponse.json({ error: "All fields are required" }, { status: 400 });
+      return NextResponse.json(
+        { success: false, message: "All fields are required", error: "All fields are required" },
+        { status: 400 }
+      );
+    }
+
+    if (!inviteCode) {
+      return NextResponse.json(
+        { success: false, message: INVITE_MSG, error: INVITE_MSG },
+        { status: 400 }
+      );
     }
 
     const existing = await prisma.owner.findUnique({ where: { email } });
     if (existing) {
-      return NextResponse.json({ error: "Email already registered" }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: "Email already registered" },
+        { status: 400 }
+      );
     }
 
     const slug = businessName.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
@@ -30,6 +56,15 @@ export async function POST(req: NextRequest) {
     const ownerPhone = typeof phone === "string" && phone.trim() ? phone.trim() : null;
 
     const result = await prisma.$transaction(async (tx) => {
+      const invite = await tx.inviteCode.findUnique({ where: { code: inviteCode } });
+      if (!invite) {
+        throw Object.assign(new Error(INVITE_MSG), { name: "InviteError" });
+      }
+      const invalid = validateInviteRow(invite);
+      if (invalid) {
+        throw Object.assign(new Error(INVITE_MSG), { name: "InviteError" });
+      }
+
       const owner = await tx.owner.create({
         data: {
           email,
@@ -50,6 +85,18 @@ export async function POST(req: NextRequest) {
           ownerId: owner.id,
         },
       });
+
+      const marked = await tx.inviteCode.updateMany({
+        where: { id: invite.id, usedAt: null },
+        data: {
+          usedAt: new Date(),
+          usedBy: email,
+        },
+      });
+      if (marked.count !== 1) {
+        throw Object.assign(new Error(INVITE_MSG), { name: "InviteError" });
+      }
+
       return { owner, business };
     });
 
@@ -71,9 +118,17 @@ export async function POST(req: NextRequest) {
     });
 
     return response;
-
-  } catch (error) {
+  } catch (error: unknown) {
+    if (error instanceof Error && error.name === "InviteError") {
+      return NextResponse.json(
+        { success: false, message: INVITE_MSG, error: INVITE_MSG },
+        { status: 400 }
+      );
+    }
     console.error("Register error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { success: false, error: "Internal server error" },
+      { status: 500 }
+    );
   }
 }
