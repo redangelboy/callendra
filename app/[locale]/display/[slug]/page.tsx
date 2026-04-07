@@ -29,16 +29,11 @@ function StaffColumn({
 }) {
   return (
     <section className="flex min-h-0 h-full min-w-0 flex-col overflow-hidden rounded-xl sm:rounded-2xl border border-[var(--callendra-border)] bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))]">
-      <div className="shrink-0 flex items-center gap-2 px-2 py-2 sm:px-3 sm:py-2.5 min-w-0 border-b border-[var(--callendra-border)]/60">
-        <StaffAvatar
-          name={s.name}
-          photo={s.photo}
-          size="display"
-          className="!w-9 !h-9 !min-w-[2.25rem] !min-h-[2.25rem] !text-[10px] sm:!w-11 sm:!h-11 sm:!min-w-[2.75rem] sm:!min-h-[2.75rem] sm:!text-xs md:!w-12 md:!h-12"
-        />
+      <div className="shrink-0 flex items-center gap-2.5 px-2 py-2.5 sm:px-3 sm:py-3 min-w-0 border-b border-[var(--callendra-border)]/60">
+        <StaffAvatar name={s.name} photo={s.photo} size="display" />
         <div className="min-w-0 flex-1">
-          <div className="font-bold text-sm sm:text-base truncate">{s.name}</div>
-          <div className="text-[10px] sm:text-xs text-[var(--callendra-text-secondary)]">
+          <div className="font-bold text-sm sm:text-base md:text-lg truncate">{s.name}</div>
+          <div className="text-[10px] sm:text-xs md:text-sm text-[var(--callendra-text-secondary)]">
             {s.appointments.length} appt{s.appointments.length !== 1 ? "s" : ""}
           </div>
         </div>
@@ -248,21 +243,21 @@ function DisplayPageInner() {
     <main
       className="flex h-full min-h-0 flex-col overflow-hidden bg-[var(--callendra-bg)] text-[var(--callendra-text-primary)] min-w-0 max-w-[100vw] pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)] px-2 sm:px-3 md:px-4"
     >
-      <header className="shrink-0 flex flex-col gap-2 sm:gap-3 sm:flex-row sm:justify-between sm:items-center border-b border-[var(--callendra-border)] pb-2 sm:pb-3 min-w-0">
-        <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 min-h-0">
+      <header className="shrink-0 flex flex-col gap-2 sm:gap-3 sm:flex-row sm:justify-between sm:items-center border-b border-[var(--callendra-border)] pb-0 min-w-0">
+        <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0 flex-1 min-h-0">
           {business.logo && (
             <img
               src={business.logo}
               alt=""
-              className="w-10 h-10 sm:w-14 sm:h-14 md:w-16 md:h-16 shrink-0 rounded-full object-contain border-2 border-[var(--callendra-border)]"
+              className="w-[4.5rem] h-[4.5rem] sm:w-24 sm:h-24 md:w-28 md:h-28 lg:w-32 lg:h-32 xl:w-36 xl:h-36 shrink-0 object-contain"
             />
           )}
           <div className="min-w-0">
-            <h1 className="text-base sm:text-xl md:text-2xl lg:text-3xl font-bold tracking-tight break-words hyphens-auto leading-tight">
+            <h1 className="text-lg sm:text-2xl md:text-3xl lg:text-[2rem] xl:text-[2.25rem] font-bold tracking-tight break-words hyphens-auto leading-tight">
               {business.parentSlug && business.locationSlug ? `${business.parentName || business.name}` : business.name}
               {business.parentSlug && business.locationSlug && business.name ? ` - ${business.name}` : ""}
             </h1>
-            <p className="text-[var(--callendra-text-secondary)] mt-0.5 text-[10px] sm:text-xs md:text-sm truncate">
+            <p className="text-[var(--callendra-text-secondary)] mt-1 text-xs sm:text-sm md:text-base truncate">
               {DAYS[now.getDay()]}, {now.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
             </p>
           </div>
