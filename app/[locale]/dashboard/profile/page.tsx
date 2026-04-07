@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useParams } from "next/navigation";
-import { bookingPathForBusiness } from "@/lib/booking-path";
+import { bookingPathForBusiness, walkInPathForBusiness } from "@/lib/booking-path";
 import { normalizeBrandSlug } from "@/lib/rename-brand-slug";
 import {
   CALLENDRA_THEMES,
@@ -41,9 +41,12 @@ export default function ProfilePage() {
   const [bookingPath, setBookingPath] = useState("");
   const [mainLocationLinks, setMainLocationLinks] = useState<{ id: string; name: string; path: string }[]>([]);
   const [displayToken, setDisplayToken] = useState<string | null>(null);
+  const [walkInToken, setWalkInToken] = useState<string | null>(null);
   const [isOwner, setIsOwner] = useState(false);
   const [displayTokenLoading, setDisplayTokenLoading] = useState(false);
+  const [walkInTokenLoading, setWalkInTokenLoading] = useState(false);
   const [displayTokenError, setDisplayTokenError] = useState("");
+  const [walkInTokenError, setWalkInTokenError] = useState("");
   const [brandSlugInput, setBrandSlugInput] = useState("");
   const [initialBrandSlug, setInitialBrandSlug] = useState("");
   const [confirmBrandSlug, setConfirmBrandSlug] = useState(false);
@@ -54,6 +57,27 @@ export default function ProfilePage() {
     return `${origin}/${locale}/display/${encodeURIComponent(slug)}?token=${encodeURIComponent(displayToken)}`;
   }, [slug, displayToken, locale]);
 
+  const walkInUrlsByLocation = useMemo(() => {
+    if (!walkInToken || typeof window === "undefined") return [] as { id: string; name: string; url: string }[];
+    if (mainLocationLinks.length === 0) return [];
+    const origin = (process.env.NEXT_PUBLIC_URL || window.location.origin).replace(/\/$/, "");
+    return mainLocationLinks.map((row) => ({
+      id: row.id,
+      name: row.name,
+      url: `${origin}/${locale}${row.path.replace(/^\/book/, "/walk-in")}?token=${encodeURIComponent(walkInToken)}`,
+    }));
+  }, [mainLocationLinks, walkInToken, locale]);
+
+  const walkInUrl = useMemo(() => {
+    if (typeof window === "undefined" || !slug || !walkInToken) return "";
+    if (mainLocationLinks.length > 0) return "";
+    const origin = (process.env.NEXT_PUBLIC_URL || window.location.origin).replace(/\/$/, "");
+    const path = bookingPath
+      ? bookingPath.replace(/^\/book/, "/walk-in")
+      : `/walk-in/${slug}`;
+    return `${origin}/${locale}${path}?token=${encodeURIComponent(walkInToken)}`;
+  }, [slug, walkInToken, bookingPath, locale, mainLocationLinks.length]);
+
   const maskedToken =
     displayToken && displayToken.length > 8
       ? `••••••${displayToken.slice(-8)}`
@@ -61,10 +85,20 @@ export default function ProfilePage() {
         ? "••••••••"
         : null;
 
+  const maskedWalkInToken =
+    walkInToken && walkInToken.length > 8
+      ? `••••••${walkInToken.slice(-8)}`
+      : walkInToken
+        ? "••••••••"
+        : null;
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("displayToken") === "required") {
       setDisplayTokenError("Generate your display token first (Display screen section below).");
+    }
+    if (params.get("walkInToken") === "required") {
+      setWalkInTokenError("Generate your walk-in token first (Walk-in iPad section below).");
     }
   }, []);
 
@@ -76,6 +110,7 @@ export default function ProfilePage() {
     const data = await a.json();
     if (!data.id) return;
     setDisplayToken(typeof data.displayToken === "string" ? data.displayToken : null);
+    setWalkInToken(typeof data.walkInToken === "string" ? data.walkInToken : null);
 
     const hasNotif = "notificationPhone" in data;
     setShowNotificationPhone(hasNotif);
@@ -117,9 +152,8 @@ export default function ProfilePage() {
         (l: any) => (l.parentSlug ?? l.slug) === (data.parentSlug ?? data.slug)
       ).length;
       setMainLocationLinks([]);
-      setBookingPath(
-        bookingPathForBusiness(data.parentSlug, data.slug, data.locationSlug, countForParent)
-      );
+      const bp = bookingPathForBusiness(data.parentSlug, data.slug, data.locationSlug, countForParent);
+      setBookingPath(bp);
       return;
     }
 
@@ -219,12 +253,40 @@ export default function ProfilePage() {
     }
   };
 
+  const handleRegenerateWalkInToken = async () => {
+    setWalkInTokenLoading(true);
+    setWalkInTokenError("");
+    try {
+      const res = await fetch("/api/business", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "regenerateWalkInToken" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not update token");
+      if (typeof data.walkInToken === "string") setWalkInToken(data.walkInToken);
+    } catch (err: unknown) {
+      setWalkInTokenError(err instanceof Error ? err.message : "Error");
+    } finally {
+      setWalkInTokenLoading(false);
+    }
+  };
+
   const copyDisplayUrl = async () => {
     if (!displayUrl) return;
     try {
       await navigator.clipboard.writeText(displayUrl);
     } catch {
       setDisplayTokenError("Could not copy to clipboard");
+    }
+  };
+
+  const copyWalkInUrl = async (url: string) => {
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      setWalkInTokenError("Could not copy to clipboard");
     }
   };
 
@@ -364,6 +426,75 @@ export default function ProfilePage() {
               >
                 Copy URL
               </button>
+            </div>
+          </div>
+        )}
+
+        {isOwner && (
+          <div className="border border-[var(--callendra-border)] rounded-2xl p-6 flex flex-col gap-4 mb-8">
+            <h2 className="font-semibold">Walk-in (iPad)</h2>
+            <p className="text-sm text-[var(--callendra-text-secondary)]">
+              Put this URL on an iPad at your entrance so walk-in clients can book without the public web limits. Only
+              people with the full link can open it (separate secret from the display screen).
+            </p>
+            {walkInTokenError && (
+              <p className="text-sm text-amber-400/90">{walkInTokenError}</p>
+            )}
+            {!walkInToken ? (
+              <p className="text-sm text-[var(--callendra-text-secondary)]">No token generated yet.</p>
+            ) : (
+              <>
+                <div>
+                  <div className="text-xs text-[var(--callendra-text-secondary)] mb-1">Current token (masked)</div>
+                  <div className="font-mono text-sm text-[var(--callendra-text-primary)]">{maskedWalkInToken}</div>
+                </div>
+                {walkInUrlsByLocation.length > 0 ? (
+                  <ul className="flex flex-col gap-4">
+                    {walkInUrlsByLocation.map((row) => (
+                      <li key={row.id}>
+                        <div className="text-xs text-[var(--callendra-text-secondary)] mb-1">{row.name}</div>
+                        <div className="font-mono text-xs break-all text-[var(--callendra-accent)]">{row.url}</div>
+                      </li>
+                    ))}
+                  </ul>
+                ) : walkInUrl ? (
+                  <div>
+                    <div className="text-xs text-[var(--callendra-text-secondary)] mb-1">Full walk-in URL</div>
+                    <div className="font-mono text-xs break-all text-[var(--callendra-accent)]">{walkInUrl}</div>
+                  </div>
+                ) : null}
+              </>
+            )}
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={walkInTokenLoading}
+                onClick={handleRegenerateWalkInToken}
+                className="ui-btn-primary px-4 py-2 rounded-xl text-sm font-medium disabled:opacity-50"
+              >
+                {walkInTokenLoading ? "Saving…" : walkInToken ? "Regenerate token" : "Generate token"}
+              </button>
+              {walkInUrlsByLocation.length > 0 ? (
+                walkInUrlsByLocation.map((row) => (
+                  <button
+                    key={row.id}
+                    type="button"
+                    onClick={() => copyWalkInUrl(row.url)}
+                    className="border border-[var(--callendra-border)] px-4 py-2 rounded-xl text-sm font-medium hover:opacity-90 transition"
+                  >
+                    Copy — {row.name}
+                  </button>
+                ))
+              ) : (
+                <button
+                  type="button"
+                  disabled={!walkInUrl}
+                  onClick={() => copyWalkInUrl(walkInUrl)}
+                  className="border border-[var(--callendra-border)] px-4 py-2 rounded-xl text-sm font-medium hover:opacity-90 transition disabled:opacity-40"
+                >
+                  Copy URL
+                </button>
+              )}
             </div>
           </div>
         )}

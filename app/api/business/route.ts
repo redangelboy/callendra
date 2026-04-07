@@ -79,7 +79,8 @@ export async function PUT(req: NextRequest) {
       );
     }
     const body = await req.json();
-    if (body?.action !== "regenerateDisplayToken") {
+    const action = body?.action;
+    if (action !== "regenerateDisplayToken" && action !== "regenerateWalkInToken") {
       return NextResponse.json({ error: "Invalid action" }, { status: 400 });
     }
     const row = await prisma.business.findUnique({ where: { id: businessId } });
@@ -87,12 +88,21 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    const displayToken = randomBytes(32).toString("hex");
+    if (action === "regenerateDisplayToken") {
+      const displayToken = randomBytes(32).toString("hex");
+      await prisma.business.update({
+        where: { id: businessId },
+        data: { displayToken },
+      });
+      return NextResponse.json({ displayToken });
+    }
+
+    const walkInToken = randomBytes(32).toString("hex");
     await prisma.business.update({
       where: { id: businessId },
-      data: { displayToken },
+      data: { walkInToken },
     });
-    return NextResponse.json({ displayToken });
+    return NextResponse.json({ walkInToken });
   } catch (error) {
     console.error("PUT /api/business", error);
     const message = error instanceof Error ? error.message : "Server error";

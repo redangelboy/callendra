@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
-import { bookingPathForBusiness } from "@/lib/booking-path";
+import { bookingPathForBusiness, walkInPathForBusiness } from "@/lib/booking-path";
 import { isMainBusinessFromPayload } from "@/lib/main-business";
 import { DashboardNewAppointmentModal } from "@/components/dashboard-new-appointment-modal";
 
@@ -18,6 +18,7 @@ export default function DashboardPage() {
   const [staffList, setStaffList] = useState<any[]>([]);
   const [stats, setStats] = useState({ total: 0, thisWeek: 0 });
   const [bookingPath, setBookingPath] = useState("");
+  const [walkInPath, setWalkInPath] = useState("");
   const [locations, setLocations] = useState<any[]>([]);
   const [locationMenuOpen, setLocationMenuOpen] = useState(false);
   const [switchingLocation, setSwitchingLocation] = useState(false);
@@ -142,9 +143,9 @@ export default function DashboardPage() {
         const countForParent = list.filter(
           (l: any) => (l.parentSlug ?? l.slug) === parent
         ).length;
-        setBookingPath(
-          bookingPathForBusiness(biz.parentSlug, biz.slug, biz.locationSlug, countForParent)
-        );
+        const bp = bookingPathForBusiness(biz.parentSlug, biz.slug, biz.locationSlug, countForParent);
+        setBookingPath(bp);
+        setWalkInPath(walkInPathForBusiness(biz.parentSlug, biz.slug, biz.locationSlug, countForParent));
       });
   }, [session]);
 
@@ -245,10 +246,17 @@ export default function DashboardPage() {
       ? `/${locale}/display/${session.slug}?token=${encodeURIComponent(business.displayToken)}`
       : `/${locale}/dashboard/profile?displayToken=required`;
 
-  const withDisplayHref = (actions: { label: string; icon: string; href: string }[]) =>
-    actions.map((a) =>
-      a.label === "Display screen" ? { ...a, href: displayScreenHref } : a
-    );
+  const walkInHref =
+    business.walkInToken && walkInPath
+      ? `/${locale}${walkInPath}?token=${encodeURIComponent(business.walkInToken)}`
+      : `/${locale}/dashboard/profile?walkInToken=required`;
+
+  const withDisplayAndWalkInHref = (actions: { label: string; icon: string; href: string }[]) =>
+    actions.map((a) => {
+      if (a.label === "Display screen") return { ...a, href: displayScreenHref };
+      if (a.label === "Walk-in (iPad)") return { ...a, href: walkInHref };
+      return a;
+    });
 
   const mainActionsMulti = [
     { label: "Manage staff", icon: "👤", href: "/en/dashboard/staff" },
@@ -259,10 +267,11 @@ export default function DashboardPage() {
     { label: "Team access", icon: "🔑", href: "#team" },
   ];
 
-  const locationActionsMulti = withDisplayHref([
+  const locationActionsMulti = withDisplayAndWalkInHref([
     { label: "Schedule", icon: "🕐", href: "/en/dashboard/schedule" },
     { label: "Today's bookings", icon: "📅", href: "#today" },
     { label: "Display screen", icon: "📺", href: `/en/display/${session.slug}` },
+    { label: "Walk-in (iPad)", icon: "🚶", href: `/en/walk-in/${session.slug}` },
     { label: "Assigned staff", icon: "👥", href: "/en/dashboard/staff" },
     { label: "Assigned services", icon: "💈", href: "/en/dashboard/services" },
     { label: "Business profile", icon: "⚙️", href: "/en/dashboard/profile" },
@@ -270,11 +279,12 @@ export default function DashboardPage() {
   ]);
 
   /** Una sola fila Business para esta marca: catálogo + operación en un solo lugar */
-  const fullActionsSingle = withDisplayHref([
+  const fullActionsSingle = withDisplayAndWalkInHref([
     { label: "Manage staff", icon: "👤", href: "/en/dashboard/staff" },
     { label: "Manage services", icon: "✂️", href: "/en/dashboard/services" },
     { label: "Set schedule", icon: "🕐", href: "/en/dashboard/schedule" },
     { label: "Display screen", icon: "📺", href: `/en/display/${session.slug}` },
+    { label: "Walk-in (iPad)", icon: "🚶", href: `/en/walk-in/${session.slug}` },
     { label: "Today's bookings", icon: "📅", href: "#today" },
     { label: "Business profile", icon: "⚙️", href: "/en/dashboard/profile" },
     { label: "Locations", icon: "🏪", href: "/en/dashboard/locations" },
@@ -284,7 +294,14 @@ export default function DashboardPage() {
 
   const isStaffUser = session?.userType === "staff";
 
-  const staffAllowedLabels = ["Schedule", "Today's bookings", "Display screen", "Assigned staff", "Assigned services"];
+  const staffAllowedLabels = [
+    "Schedule",
+    "Today's bookings",
+    "Display screen",
+    "Walk-in (iPad)",
+    "Assigned staff",
+    "Assigned services",
+  ];
 
   const rawQuickActions = singleBrandLocation
     ? fullActionsSingle

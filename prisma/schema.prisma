@@ -23,6 +23,8 @@ model Business {
   themePreset    String   @default("appleDark")
   /** Secreto para URL de pantalla pública /en/display/[slug]?token=… */
   displayToken   String?  @unique
+  /** Secreto para iPad / entrada: /[locale]/walk-in/...?token=… (sin límite por IP; reCAPTCHA omitido) */
+  walkInToken    String?  @unique
   plan           String   @default("starter")
   active         Boolean  @default(true)
   createdAt      DateTime @default(now())

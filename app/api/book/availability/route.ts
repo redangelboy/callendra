@@ -7,6 +7,7 @@ import {
   businessDayUtcRange,
   utcFromYmdAndTime,
 } from "@/lib/business-timezone";
+import { walkInTokensMatch } from "@/lib/walk-in-token";
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL!
@@ -22,6 +23,7 @@ export async function GET(req: NextRequest) {
     const staffId = searchParams.get("staffId");
     const serviceId = searchParams.get("serviceId");
     const date = searchParams.get("date");
+    const tokenParam = searchParams.get("token")?.trim() ?? "";
 
     if ((!slug && !parentSlug) || !staffId || !serviceId || !date) {
       return NextResponse.json({ error: "Missing params" }, { status: 400 });
@@ -33,6 +35,10 @@ export async function GET(req: NextRequest) {
       locationSlug: locationSlug ?? undefined,
     });
     if (!business) return NextResponse.json({ error: "Business not found" }, { status: 404 });
+
+    if (tokenParam && !walkInTokensMatch(tokenParam, business.walkInToken)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
 
     const staffOk = await prisma.staffAssignment.findFirst({
       where: { businessId: business.id, staffId, active: true },

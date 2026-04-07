@@ -5,6 +5,7 @@ import { resolveBusinessForBooking } from "@/lib/booking-business";
 import { loadLocationCatalog } from "@/lib/location-catalog";
 import { utcFromYmdAndTime } from "@/lib/business-timezone";
 import { findStaffOverlappingAppointment } from "@/lib/appointment-overlap";
+import { walkInTokensMatch } from "@/lib/walk-in-token";
 
 // Rate limiting en memoria: 3 reservaciones por día por IP
 const ipBookingCount = new Map<string, { count: number; date: string }>();
@@ -75,7 +76,19 @@ export async function GET(req: NextRequest) {
 
     const { staff, services } = await loadLocationCatalog(prisma, business.id);
 
-    return NextResponse.json({ ...business, staff, services });
+    const tokenParam = searchParams.get("token")?.trim() ?? "";
+    if (tokenParam) {
+      if (!walkInTokensMatch(tokenParam, business.walkInToken)) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+    }
+
+    const { displayToken: _dt, walkInToken: _wt, ...businessPublic } = business as {
+      displayToken?: string | null;
+      walkInToken?: string | null;
+    } & Record<string, unknown>;
+
+    return NextResponse.json({ ...businessPublic, staff, services });
   } catch (error) {
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
@@ -84,17 +97,6 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { recaptchaToken } = body;
-    const captchaOk = await verifyRecaptcha(recaptchaToken || "");
-    if (!captchaOk) {
-      return NextResponse.json({ error: "Security check failed. Please try again." }, { status: 403 });
-    }
-
-    // Rate limit por IP
-    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown";
-    if (!checkRateLimit(ip)) {
-      return NextResponse.json({ error: "Too many bookings today. Please try again tomorrow." }, { status: 429 });
-    }
     const {
       slug: bodySlug,
       parentSlug,
@@ -106,6 +108,8 @@ export async function POST(req: NextRequest) {
       clientName,
       clientPhone,
       clientEmail,
+      walkInToken: bodyWalkInToken,
+      recaptchaToken,
     } = body;
 
     if (!staffId || !serviceId || !date || !time || !clientName || !clientPhone) {
@@ -123,6 +127,31 @@ export async function POST(req: NextRequest) {
     });
 
     if (!business) return NextResponse.json({ error: "Business not found" }, { status: 404 });
+
+    const kioskOk =
+      typeof bodyWalkInToken === "string" &&
+      bodyWalkInToken.trim() !== "" &&
+      walkInTokensMatch(bodyWalkInToken, business.walkInToken);
+
+    if (typeof bodyWalkInToken === "string" && bodyWalkInToken.trim() !== "" && !kioskOk) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    if (!kioskOk) {
+      const captchaOk = await verifyRecaptcha(recaptchaToken || "");
+      if (!captchaOk) {
+        return NextResponse.json({ error: "Security check failed. Please try again." }, { status: 403 });
+      }
+
+      const ip =
+        req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown";
+      if (!checkRateLimit(ip)) {
+        return NextResponse.json({ error: "Too many bookings today. Please try again tomorrow." }, { status: 429 });
+      }
+    }
+
+    const ip =
+      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown";
 
     const staffOk = await prisma.staffAssignment.findFirst({
       where: { businessId: business.id, staffId, active: true },
@@ -169,7 +198,7 @@ export async function POST(req: NextRequest) {
         clientIp: ip || null,
         date: appointmentDate,
         status: "confirmed",
-        source: "web",
+        source: kioskOk ? "walk_in" : "web",
       }
     });
 
@@ -184,7 +213,7 @@ export async function POST(req: NextRequest) {
       const serviceMember = await prisma.service.findUnique({ where: { id: serviceId } });
       const bookingLink = await buildPublicBookingAbsUrl(prisma, business);
       await notifyClientBookingConfirmed({
-        source: "web",
+        source: kioskOk ? "walk_in" : "web",
         clientEmail: appointment.clientEmail,
         clientPhone: appointment.clientPhone,
         clientName: appointment.clientName,

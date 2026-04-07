@@ -23,7 +23,7 @@ export async function notifyClientBookingConfirmed({
   time,
   bookingLink,
 }: {
-  source: "web" | "dashboard" | "phone";
+  source: "web" | "walk_in" | "dashboard" | "phone";
   clientEmail?: string | null;
   clientPhone?: string | null;
   clientName: string;
