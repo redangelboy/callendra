@@ -111,6 +111,18 @@ export async function POST(req: NextRequest) {
 
     const args = body.args || body;
 
+    console.log(
+      "RETELL INCOMING:",
+      JSON.stringify({
+        action: args.action,
+        slug: args.slug,
+        clientPhone: args.clientPhone,
+        clientName: args.clientName,
+        date: args.date,
+        time: args.time,
+      })
+    );
+
     const actionRaw = args.action;
     const action =
       typeof actionRaw === "string" ? actionRaw.toLowerCase().trim() : "book";
