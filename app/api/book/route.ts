@@ -33,7 +33,8 @@ async function verifyRecaptcha(token: string): Promise<boolean> {
   const data = await res.json();
   return data.success && data.score >= 0.5;
 }
-import { sendBookingConfirmation } from "@/lib/email/send";
+import { buildPublicBookingAbsUrl } from "@/lib/booking-public-url";
+import { notifyClientBookingConfirmed } from "@/lib/notify";
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL!
@@ -178,29 +179,26 @@ export async function POST(req: NextRequest) {
       (global as any).io.to(`display-${displayRoomSlug}`).emit("new-appointment", appointment);
     }
 
-    // Send confirmation email
-    if (appointment.clientEmail) {
-      try {
-        const staffMember = await prisma.staff.findUnique({ where: { id: staffId } });
-        const serviceMember = await prisma.service.findUnique({ where: { id: serviceId } });
-        const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
-        const bookingPath = `${baseUrl}/en/book/${business.slug}`;
-
-        await sendBookingConfirmation({
-          clientEmail: appointment.clientEmail,
-          clientName: appointment.clientName,
-          businessName: business.name,
-          staffName: staffMember?.name || "Staff",
-          serviceName: serviceMember?.name || "Service",
-          date: date,
-          time: time,
-          bookingLink: bookingPath,
-          businessEmail: undefined,
-        });
-        console.log("Confirmation email sent to:", appointment.clientEmail);
-      } catch (emailError) {
-        console.error("Email send error:", emailError);
-      }
+    try {
+      const staffMember = await prisma.staff.findUnique({ where: { id: staffId } });
+      const serviceMember = await prisma.service.findUnique({ where: { id: serviceId } });
+      const bookingLink = await buildPublicBookingAbsUrl(prisma, business);
+      await notifyClientBookingConfirmed({
+        source: "web",
+        clientEmail: appointment.clientEmail,
+        clientPhone: appointment.clientPhone,
+        clientName: appointment.clientName,
+        businessName: business.name,
+        businessAddress: business.address,
+        googleMapsPlaceUrl: business.googleMapsPlaceUrl,
+        staffName: staffMember?.name || "Staff",
+        serviceName: serviceMember?.name || "Service",
+        date,
+        time,
+        bookingLink,
+      });
+    } catch (notifyErr) {
+      console.error("Client booking notify error:", notifyErr);
     }
 
     return NextResponse.json({ success: true, appointmentId: appointment.id });

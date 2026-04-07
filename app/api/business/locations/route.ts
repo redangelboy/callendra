@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
+import { isAllowedGoogleMapsPlaceUrl } from "@/lib/google-maps-link";
 import { PrismaPg } from "@prisma/adapter-pg";
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
 const prisma = new PrismaClient({ adapter });
@@ -49,14 +50,37 @@ export async function PATCH(req: NextRequest) {
     if (!session?.ownerId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const { ownerId } = session;
     const body = await req.json();
-    const { id, name, phone, address, retellPhoneNumber, locationSlug: bodyLoc, locationSlugUpdate } = body;
+    const { id, name, phone, address, googleMapsPlaceUrl, retellPhoneNumber, locationSlug: bodyLoc, locationSlugUpdate } =
+      body;
     const business = await prisma.business.findFirst({ where: { id, ownerId } });
     if (!business) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+    const strOrNull = (v: unknown) => {
+      if (v == null) return null;
+      const s = String(v).trim();
+      return s === "" ? null : s;
+    };
+
+    let placeUrl: string | null | undefined = undefined;
+    if ("googleMapsPlaceUrl" in body) {
+      const v = strOrNull(googleMapsPlaceUrl);
+      if (v && !isAllowedGoogleMapsPlaceUrl(v)) {
+        return NextResponse.json(
+          {
+            error:
+              "Invalid Google Maps link. Use Share → copy link from your Google Maps business listing.",
+          },
+          { status: 400 }
+        );
+      }
+      placeUrl = v;
+    }
 
     const data: {
       name: string;
       phone?: string | null;
       address?: string | null;
+      googleMapsPlaceUrl?: string | null;
       retellPhoneNumber?: string | null;
       locationSlug?: string;
       slug?: string;
@@ -65,6 +89,7 @@ export async function PATCH(req: NextRequest) {
       phone: phone ?? null,
       address: address ?? null,
       retellPhoneNumber: retellPhoneNumber || null,
+      ...(placeUrl !== undefined ? { googleMapsPlaceUrl: placeUrl } : {}),
     };
 
     if (locationSlugUpdate === true) {

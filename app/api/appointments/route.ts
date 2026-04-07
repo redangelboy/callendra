@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { notifyCancelRequest } from "@/lib/notify";
+import { notifyCancelRequest, notifyClientBookingConfirmed } from "@/lib/notify";
+import { buildPublicBookingAbsUrl } from "@/lib/booking-public-url";
 import { utcFromYmdAndTime } from "@/lib/business-timezone";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -134,7 +135,7 @@ export async function POST(req: NextRequest) {
     const session = req.cookies.get("session")?.value;
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const { businessId } = JSON.parse(session);
-    const { clientName, clientPhone, staffId, serviceId, date, time } = await req.json();
+    const { clientName, clientPhone, clientEmail, staffId, serviceId, date, time } = await req.json();
     if (!clientName || !staffId || !serviceId || !date || !time) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
@@ -175,6 +176,7 @@ export async function POST(req: NextRequest) {
       data: {
         clientName,
         clientPhone: clientPhone || "",
+        clientEmail: clientEmail != null && String(clientEmail).trim() ? String(clientEmail).trim() : null,
         staffId,
         serviceId,
         businessId,
@@ -185,9 +187,31 @@ export async function POST(req: NextRequest) {
       include: { staff: true, service: true },
     });
 
-    const bizRow = await prisma.business.findUnique({ where: { id: businessId }, select: { slug: true } });
+    const bizRow = await prisma.business.findUnique({ where: { id: businessId } });
     if (bizRow && (global as any).io) {
       (global as any).io.to(`display-${bizRow.slug}`).emit("new-appointment", appointment);
+    }
+
+    if (bizRow) {
+      try {
+        const bookingLink = await buildPublicBookingAbsUrl(prisma, bizRow);
+        await notifyClientBookingConfirmed({
+          source: "dashboard",
+          clientEmail: appointment.clientEmail,
+          clientPhone: appointment.clientPhone,
+          clientName: appointment.clientName,
+          businessName: bizRow.name,
+          businessAddress: bizRow.address,
+          googleMapsPlaceUrl: bizRow.googleMapsPlaceUrl,
+          staffName: appointment.staff?.name || "Staff",
+          serviceName: appointment.service?.name || "Service",
+          date,
+          time,
+          bookingLink,
+        });
+      } catch (e) {
+        console.error("Dashboard booking client notify error:", e);
+      }
     }
 
     return NextResponse.json({ success: true, appointment });

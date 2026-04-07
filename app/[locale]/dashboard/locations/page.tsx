@@ -99,6 +99,7 @@ export default function LocationsPage() {
           name: editing.name,
           phone: editing.phone,
           address: editing.address,
+          googleMapsPlaceUrl: editing.googleMapsPlaceUrl,
           retellPhoneNumber: editing.retellPhoneNumber,
           ...(locationSlugUpdate ? { locationSlug: editing.locationSlug, locationSlugUpdate: true } : {}),
         }),
@@ -233,6 +234,16 @@ export default function LocationsPage() {
                         onChange={(e) => setEditing({ ...editing, address: e.target.value })}
                         placeholder="123 Main St, City, TX"
                         className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition" />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs text-[var(--callendra-text-secondary)]">Google Maps link (optional)</label>
+                      <input
+                        type="url"
+                        value={editing.googleMapsPlaceUrl || ""}
+                        onChange={(e) => setEditing({ ...editing, googleMapsPlaceUrl: e.target.value })}
+                        placeholder="Share link from Google Maps"
+                        className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-xs font-mono outline-none focus:border-[var(--callendra-accent)] transition"
+                      />
                     </div>
                     <div className="flex flex-col gap-1">
                       <label className="text-xs text-[var(--callendra-text-secondary)]">🤖 AI Agent Phone Number (Retell)</label>

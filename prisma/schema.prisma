@@ -17,6 +17,8 @@ model Business {
   phone          String?
   retellPhoneNumber String?  @unique
   address        String?
+  /** Link "Compartir" de la ficha del negocio en Google Maps (opcional; prioridad sobre búsqueda por nombre+dirección) */
+  googleMapsPlaceUrl String?
   /** Preset de colores para booking / pantalla pública (ver lib/callendra-themes.ts) */
   themePreset    String   @default("appleDark")
   /** Secreto para URL de pantalla pública /en/display/[slug]?token=… */

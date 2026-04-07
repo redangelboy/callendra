@@ -48,7 +48,7 @@ export function DashboardNewAppointmentModal({
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedTime, setSelectedTime] = useState("");
   const [slots, setSlots] = useState<string[]>([]);
-  const [form, setForm] = useState({ clientName: "", clientPhone: "" });
+  const [form, setForm] = useState({ clientName: "", clientPhone: "", clientEmail: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [nowTick, setNowTick] = useState(Date.now());
@@ -61,7 +61,7 @@ export function DashboardNewAppointmentModal({
       setSelectedDate("");
       setSelectedTime("");
       setSlots([]);
-      setForm({ clientName: "", clientPhone: "" });
+      setForm({ clientName: "", clientPhone: "", clientEmail: "" });
       setError("");
     }
   }, [open]);
@@ -121,6 +121,7 @@ export function DashboardNewAppointmentModal({
         body: JSON.stringify({
           clientName: form.clientName.trim(),
           clientPhone: form.clientPhone.trim(),
+          clientEmail: form.clientEmail.trim() || undefined,
           staffId: selectedStaff.id,
           serviceId: selectedService.id,
           date: selectedDate,
@@ -342,9 +343,16 @@ export function DashboardNewAppointmentModal({
               />
               <input
                 type="tel"
-                placeholder="Phone"
+                placeholder="Phone (for SMS confirmation)"
                 value={form.clientPhone}
                 onChange={(e) => setForm({ ...form, clientPhone: e.target.value })}
+                className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] text-[var(--callendra-text-primary)]"
+              />
+              <input
+                type="email"
+                placeholder="Email (optional, for confirmation)"
+                value={form.clientEmail}
+                onChange={(e) => setForm({ ...form, clientEmail: e.target.value })}
                 className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] text-[var(--callendra-text-primary)]"
               />
               {error && <p className="text-red-400 text-sm">{error}</p>}

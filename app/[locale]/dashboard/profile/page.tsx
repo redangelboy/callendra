@@ -1,7 +1,8 @@
 "use client";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { bookingPathForBusiness } from "@/lib/booking-path";
+import { normalizeBrandSlug } from "@/lib/rename-brand-slug";
 import {
   CALLENDRA_THEMES,
   type CallendraThemeId,
@@ -23,6 +24,7 @@ export default function ProfilePage() {
     phone: "",
     notificationPhone: "",
     address: "",
+    googleMapsPlaceUrl: "",
     logo: "",
     retellPhoneNumber: "",
     themePreset: DEFAULT_THEME_ID as string,
@@ -42,6 +44,9 @@ export default function ProfilePage() {
   const [isOwner, setIsOwner] = useState(false);
   const [displayTokenLoading, setDisplayTokenLoading] = useState(false);
   const [displayTokenError, setDisplayTokenError] = useState("");
+  const [brandSlugInput, setBrandSlugInput] = useState("");
+  const [initialBrandSlug, setInitialBrandSlug] = useState("");
+  const [confirmBrandSlug, setConfirmBrandSlug] = useState(false);
 
   const displayUrl = useMemo(() => {
     if (typeof window === "undefined" || !slug || !displayToken) return "";
@@ -63,93 +68,98 @@ export default function ProfilePage() {
     }
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const [a, sessionRes] = await Promise.all([fetch("/api/business"), fetch("/api/auth/session")]);
-      const sessionData = await sessionRes.json();
-      if (!cancelled) setIsOwner(!!sessionData.ownerId);
+  const loadBusinessProfile = useCallback(async () => {
+    const [a, sessionRes] = await Promise.all([fetch("/api/business"), fetch("/api/auth/session")]);
+    const sessionData = await sessionRes.json();
+    setIsOwner(!!sessionData.ownerId);
 
-      const data = await a.json();
-      if (!data.id || cancelled) return;
-      setDisplayToken(typeof data.displayToken === "string" ? data.displayToken : null);
+    const data = await a.json();
+    if (!data.id) return;
+    setDisplayToken(typeof data.displayToken === "string" ? data.displayToken : null);
 
-      const hasNotif = "notificationPhone" in data;
-      setShowNotificationPhone(hasNotif);
-      const tp = data.themePreset;
-      setForm({
-        name: data.name || "",
-        phone: data.phone || "",
-        notificationPhone: hasNotif ? data.notificationPhone || "" : "",
-        address: data.address || "",
-        logo: data.logo || "",
-        retellPhoneNumber: data.retellPhoneNumber || "",
-        themePreset:
-          typeof tp === "string" && isValidThemeId(tp) ? tp : DEFAULT_THEME_ID,
-      });
-      setSlug(data.slug || "");
+    const hasNotif = "notificationPhone" in data;
+    setShowNotificationPhone(hasNotif);
+    const tp = data.themePreset;
+    setForm({
+      name: data.name || "",
+      phone: data.phone || "",
+      notificationPhone: hasNotif ? data.notificationPhone || "" : "",
+      address: data.address || "",
+      googleMapsPlaceUrl: data.googleMapsPlaceUrl || "",
+      logo: data.logo || "",
+      retellPhoneNumber: data.retellPhoneNumber || "",
+      themePreset:
+        typeof tp === "string" && isValidThemeId(tp) ? tp : DEFAULT_THEME_ID,
+    });
+    setSlug(data.slug || "");
 
-      const isMain = !!data.isMainBusiness;
-      setIsMainBusiness(isMain);
+    const isMain = !!data.isMainBusiness;
+    setIsMainBusiness(isMain);
 
-      const locRes = await fetch("/api/business/locations");
-      const locs = await locRes.json();
-      if (cancelled) return;
-      const list = Array.isArray(locs) ? locs : [];
-      const locationCount = list.filter((l: any) => l.parentSlug === data.slug).length;
-      const hasBranchLocations = locationCount > 0;
-      setHasLocations(hasBranchLocations);
+    const canon = (data.parentSlug ?? data.slug ?? "").trim();
+    if (isMain) {
+      setBrandSlugInput(canon);
+      setInitialBrandSlug(canon);
+    } else {
+      setBrandSlugInput("");
+      setInitialBrandSlug("");
+    }
 
-      if (!isMain) {
-        const countForParent = list.filter(
-          (l: any) => (l.parentSlug ?? l.slug) === (data.parentSlug ?? data.slug)
-        ).length;
-        setMainLocationLinks([]);
-        setBookingPath(
-          bookingPathForBusiness(data.parentSlug, data.slug, data.locationSlug, countForParent)
-        );
-        return;
-      }
+    const locRes = await fetch("/api/business/locations");
+    const locs = await locRes.json();
+    const list = Array.isArray(locs) ? locs : [];
+    const locationCount = list.filter((l: any) => l.parentSlug === data.slug).length;
+    const hasBranchLocations = locationCount > 0;
+    setHasLocations(hasBranchLocations);
 
-      const brandLocs = list.filter(
-        (l: any) => (l.parentSlug ?? l.slug) === data.slug
+    if (!isMain) {
+      const countForParent = list.filter(
+        (l: any) => (l.parentSlug ?? l.slug) === (data.parentSlug ?? data.slug)
+      ).length;
+      setMainLocationLinks([]);
+      setBookingPath(
+        bookingPathForBusiness(data.parentSlug, data.slug, data.locationSlug, countForParent)
       );
-      const countForParent = brandLocs.length;
+      return;
+    }
 
-      if (hasBranchLocations) {
-        const linksOnly = brandLocs
-          .filter((l: any) => {
-            const ls = (l.locationSlug ?? "").trim();
-            return ls !== "" && ls !== "main";
-          })
-          .map((l: any) => {
-            const parentSlug = l.parentSlug ?? l.slug;
-            const locationSlug = (l.locationSlug ?? "").trim() || "main";
-            return {
-              id: l.id,
-              name: l.name || "Location",
-              path: `/book/${parentSlug}/${locationSlug}`,
-            };
-          });
-        setMainLocationLinks(linksOnly);
-        if (linksOnly.length === 0) {
-          setBookingPath(
-            bookingPathForBusiness(data.parentSlug, data.slug, data.locationSlug, countForParent)
-          );
-        } else {
-          setBookingPath("");
-        }
-      } else {
-        setMainLocationLinks([]);
+    const brandLocs = list.filter((l: any) => (l.parentSlug ?? l.slug) === data.slug);
+    const countForParent = brandLocs.length;
+
+    if (hasBranchLocations) {
+      const linksOnly = brandLocs
+        .filter((l: any) => {
+          const ls = (l.locationSlug ?? "").trim();
+          return ls !== "" && ls !== "main";
+        })
+        .map((l: any) => {
+          const parentSlug = l.parentSlug ?? l.slug;
+          const locationSlug = (l.locationSlug ?? "").trim() || "main";
+          return {
+            id: l.id,
+            name: l.name || "Location",
+            path: `/book/${parentSlug}/${locationSlug}`,
+          };
+        });
+      setMainLocationLinks(linksOnly);
+      if (linksOnly.length === 0) {
         setBookingPath(
           bookingPathForBusiness(data.parentSlug, data.slug, data.locationSlug, countForParent)
         );
+      } else {
+        setBookingPath("");
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    } else {
+      setMainLocationLinks([]);
+      setBookingPath(
+        bookingPathForBusiness(data.parentSlug, data.slug, data.locationSlug, countForParent)
+      );
+    }
   }, []);
+
+  useEffect(() => {
+    void loadBusinessProfile();
+  }, [loadBusinessProfile]);
 
   const themeOptionsInCategory = useMemo(
     () => themesForCategory(themeCategory),
@@ -222,17 +232,40 @@ export default function ProfilePage() {
     setLoading(true);
     setError("");
     try {
+      const normalizedBrand = normalizeBrandSlug(brandSlugInput);
+      const canonicalInitial = normalizeBrandSlug(initialBrandSlug);
+      const brandChanged = isOwner && isMainBusiness && normalizedBrand !== canonicalInitial;
+
+      if (brandChanged && !confirmBrandSlug) {
+        setError("Check the box to confirm you understand that old booking links, QR codes, and saved URLs will stop working.");
+        setLoading(false);
+        return;
+      }
+      if (brandChanged && !normalizedBrand) {
+        setError("Brand URL slug cannot be empty.");
+        setLoading(false);
+        return;
+      }
+
+      const body: Record<string, unknown> = { ...form };
+      if (brandChanged) {
+        body.brandSlug = normalizedBrand;
+        body.confirmBrandSlugChange = true;
+      }
+
       const res = await fetch("/api/business", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      if (!res.ok) throw new Error(data.error || "Save failed");
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
-    } catch (err: any) {
-      setError(err.message);
+      setConfirmBrandSlug(false);
+      await loadBusinessProfile();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Error");
     } finally {
       setLoading(false);
     }
@@ -487,6 +520,61 @@ export default function ProfilePage() {
               placeholder="123 Main St, Dallas TX"
               className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition" />
           </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm text-[var(--callendra-text-secondary)]">Google Maps link (optional)</label>
+            <input
+              type="url"
+              value={form.googleMapsPlaceUrl}
+              onChange={(e) => setForm({ ...form, googleMapsPlaceUrl: e.target.value })}
+              placeholder="https://maps.app.goo.gl/... or https://www.google.com/maps/place/..."
+              className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition font-mono text-xs"
+            />
+            <p className="text-xs text-[var(--callendra-text-secondary)] opacity-80">
+              Open your business in Google Maps → Share → copy link. Used in booking confirmation email/SMS so clients open the correct place, not a generic search.
+            </p>
+          </div>
+          {isOwner && isMainBusiness && (
+            <div className="flex flex-col gap-2 rounded-xl border border-[var(--callendra-border)] bg-[color-mix(in_srgb,var(--callendra-text-primary)_4%,var(--callendra-bg))] p-4">
+              <div>
+                <label className="text-sm font-medium text-[var(--callendra-text-primary)]">Booking URL (brand slug)</label>
+                <p className="text-xs text-[var(--callendra-text-secondary)] mt-1">
+                  Middle part of <span className="font-mono">/book/…/your-location</span>. Lowercase letters, numbers, and hyphens only. Changing it updates every location link for this brand.
+                </p>
+              </div>
+              <input
+                type="text"
+                value={brandSlugInput}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setBrandSlugInput(v);
+                  if (normalizeBrandSlug(v) === normalizeBrandSlug(initialBrandSlug)) {
+                    setConfirmBrandSlug(false);
+                  }
+                }}
+                autoComplete="off"
+                spellCheck={false}
+                className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm font-mono outline-none focus:border-[var(--callendra-accent)] transition"
+              />
+              <p className="text-xs text-[var(--callendra-accent)] font-mono break-all">
+                {hasLocations && mainLocationLinks.length > 0
+                  ? `Example: /book/${normalizeBrandSlug(brandSlugInput) || "…"}/your-location`
+                  : `/book/${normalizeBrandSlug(brandSlugInput) || "…"}`}
+              </p>
+              {normalizeBrandSlug(brandSlugInput) !== normalizeBrandSlug(initialBrandSlug) && (
+                <label className="flex items-start gap-2 cursor-pointer text-sm text-[var(--callendra-text-secondary)]">
+                  <input
+                    type="checkbox"
+                    className="mt-1 rounded border-[var(--callendra-border)]"
+                    checked={confirmBrandSlug}
+                    onChange={(e) => setConfirmBrandSlug(e.target.checked)}
+                  />
+                  <span>
+                    I understand that after saving, old booking links, QR codes, and bookmarks that use the previous URL will no longer work until I share the new ones.
+                  </span>
+                </label>
+              )}
+            </div>
+          )}
           {(!isMainBusiness || !hasLocations) && (
             <div className="flex flex-col gap-1">
               <label className="text-sm text-[var(--callendra-text-secondary)]">AI Agent Phone Number</label>

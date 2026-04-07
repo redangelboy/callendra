@@ -4,6 +4,8 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { loadLocationCatalog } from "@/lib/location-catalog";
 import { utcFromYmdAndTime } from "@/lib/business-timezone";
 import { findStaffOverlappingAppointment } from "@/lib/appointment-overlap";
+import { buildPublicBookingAbsUrl } from "@/lib/booking-public-url";
+import { notifyClientBookingConfirmed } from "@/lib/notify";
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL!
@@ -168,6 +170,26 @@ export async function POST(req: NextRequest) {
       });
     } catch (emitError) {
       console.error("Emit error:", emitError);
+    }
+
+    try {
+      const bookingLink = await buildPublicBookingAbsUrl(prisma, business);
+      await notifyClientBookingConfirmed({
+        source: "phone",
+        clientPhone: clientPhone,
+        clientEmail: null,
+        clientName,
+        businessName: business.name,
+        businessAddress: business.address,
+        googleMapsPlaceUrl: business.googleMapsPlaceUrl,
+        staffName: selectedStaff.name,
+        serviceName: selectedService.name,
+        date: resolvedDate,
+        time: resolvedTime,
+        bookingLink,
+      });
+    } catch (notifyErr) {
+      console.error("Retell client SMS notify error:", notifyErr);
     }
 
     return NextResponse.json({

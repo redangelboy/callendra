@@ -8,6 +8,7 @@ import { DashboardNewAppointmentModal } from "@/components/dashboard-new-appoint
 export default function DashboardPage() {
   const routeParams = useParams();
   const locale = typeof routeParams?.locale === "string" ? routeParams.locale : "en";
+  const reportsHref = `/${locale}/dashboard/reports`;
 
   const [session, setSession] = useState<any>(null);
   const [business, setBusiness] = useState<any>(null);
@@ -90,8 +91,10 @@ export default function DashboardPage() {
     const main = biz ? isMainBusinessFromPayload(biz) : false;
 
     if (accountHasMultipleBusinessRows && main) {
-      const locParam = locationFilter !== "all" ? `?locationId=${locationFilter}` : "";
-      const cons = await fetch(`/api/appointments/consolidated${locParam}`);
+      const consParams = new URLSearchParams();
+      consParams.set("range", "today");
+      if (locationFilter !== "all") consParams.set("locationId", locationFilter);
+      const cons = await fetch(`/api/appointments/consolidated?${consParams.toString()}`);
       const c = await cons.json();
       if (cons.ok && Array.isArray(c.appointments)) {
         setAppointments(c.appointments);
@@ -252,7 +255,7 @@ export default function DashboardPage() {
     { label: "Manage services", icon: "✂️", href: "/en/dashboard/services" },
     { label: "Locations", icon: "🏪", href: "/en/dashboard/locations" },
     { label: "Business profile", icon: "⚙️", href: "/en/dashboard/profile" },
-    { label: "Consolidated reports", icon: "📊", href: "/en/dashboard/reports" },
+    { label: "Consolidated reports", icon: "📊", href: reportsHref },
     { label: "Team access", icon: "🔑", href: "#team" },
   ];
 
@@ -263,7 +266,7 @@ export default function DashboardPage() {
     { label: "Assigned staff", icon: "👥", href: "/en/dashboard/staff" },
     { label: "Assigned services", icon: "💈", href: "/en/dashboard/services" },
     { label: "Business profile", icon: "⚙️", href: "/en/dashboard/profile" },
-    ...(isOwner ? [{ label: "Consolidated reports", icon: "📊", href: "/en/dashboard/reports" }] as const : []),
+    ...(isOwner ? [{ label: "Consolidated reports", icon: "📊", href: reportsHref }] as const : []),
   ]);
 
   /** Una sola fila Business para esta marca: catálogo + operación en un solo lugar */
@@ -276,7 +279,7 @@ export default function DashboardPage() {
     { label: "Business profile", icon: "⚙️", href: "/en/dashboard/profile" },
     { label: "Locations", icon: "🏪", href: "/en/dashboard/locations" },
     { label: "Team access", icon: "🔑", href: "#team" },
-    ...(isOwner ? [{ label: "Consolidated reports", icon: "📊", href: "/en/dashboard/reports" }] : []),
+    ...(isOwner ? [{ label: "Consolidated reports", icon: "📊", href: reportsHref }] : []),
   ]);
 
   const isStaffUser = session?.userType === "staff";
@@ -411,7 +414,7 @@ export default function DashboardPage() {
                     <option key={loc.id} value={loc.id}>{loc.name}</option>
                   ))}
                 </select>
-                <a href="/en/dashboard/reports" className="text-sm text-[var(--callendra-text-secondary)] hover:opacity-90 transition border border-[var(--callendra-border)] px-4 py-2 rounded-full">
+                <a href={reportsHref} className="text-sm text-[var(--callendra-text-secondary)] hover:opacity-90 transition border border-[var(--callendra-border)] px-4 py-2 rounded-full">
                   Reports →
                 </a>
               </div>

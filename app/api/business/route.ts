@@ -4,6 +4,8 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import type { Prisma } from "@prisma/client";
 import { getMainBusinessIdForOwner } from "@/lib/main-business";
+import { normalizeBrandSlug, renameBrandSlugForOwner } from "@/lib/rename-brand-slug";
+import { isAllowedGoogleMapsPlaceUrl } from "@/lib/google-maps-link";
 import { isValidThemeId } from "@/lib/callendra-themes";
 
 const adapter = new PrismaPg({
@@ -103,6 +105,12 @@ export async function PUT(req: NextRequest) {
   }
 }
 
+const SESSION_COOKIE_OPTIONS = {
+  httpOnly: true,
+  maxAge: 60 * 60 * 24 * 7,
+  path: "/" as const,
+};
+
 export async function PATCH(req: NextRequest) {
   try {
     const session = req.cookies.get("session")?.value;
@@ -110,7 +118,7 @@ export async function PATCH(req: NextRequest) {
     const parsed = JSON.parse(session);
     const { businessId, ownerId } = parsed as { businessId: string; ownerId?: string };
     const body = await req.json();
-    const { name, phone, address, logo, retellPhoneNumber, notificationPhone, themePreset } = body;
+    const { name, phone, address, logo, retellPhoneNumber, notificationPhone, themePreset, googleMapsPlaceUrl } = body;
 
     const themeUpdate =
       themePreset !== undefined && isValidThemeId(String(themePreset))
@@ -128,18 +136,69 @@ export async function PATCH(req: NextRequest) {
     }
     if ("phone" in body) data.phone = strOrNull(phone);
     if ("address" in body) data.address = strOrNull(address);
+    if ("googleMapsPlaceUrl" in body) {
+      const v = strOrNull(googleMapsPlaceUrl);
+      if (v && !isAllowedGoogleMapsPlaceUrl(v)) {
+        return NextResponse.json(
+          {
+            error:
+              "Invalid Google Maps link. Open your business on Google Maps → Share → copy link (maps.google.com or maps.app.goo.gl).",
+          },
+          { status: 400 }
+        );
+      }
+      data.googleMapsPlaceUrl = v;
+    }
     if ("logo" in body) data.logo = strOrNull(logo);
     if ("retellPhoneNumber" in body) data.retellPhoneNumber = strOrNull(retellPhoneNumber);
     if (themeUpdate !== undefined) data.themePreset = themeUpdate;
 
-    if (Object.keys(data).length === 0) {
+    let didRenameBrand = false;
+    if ("brandSlug" in body && body.brandSlug !== undefined && body.brandSlug !== null) {
+      if (!ownerId) {
+        return NextResponse.json({ error: "Only the business owner can change the booking URL" }, { status: 403 });
+      }
+      if (body.confirmBrandSlugChange !== true) {
+        return NextResponse.json(
+          { error: "Confirm that you understand old booking links will stop working" },
+          { status: 400 }
+        );
+      }
+      const mainId = await getMainBusinessIdForOwner(prisma, ownerId);
+      if (!mainId || businessId !== mainId) {
+        return NextResponse.json(
+          { error: "Booking URL can only be changed from the main brand profile" },
+          { status: 403 }
+        );
+      }
+      const normalized = normalizeBrandSlug(String(body.brandSlug));
+      if (!normalized) {
+        return NextResponse.json({ error: "Brand URL slug cannot be empty" }, { status: 400 });
+      }
+      try {
+        await renameBrandSlugForOwner(prisma, {
+          ownerId,
+          mainBusinessId: mainId,
+          newParent: normalized,
+        });
+        didRenameBrand = true;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Could not update URL";
+        return NextResponse.json({ error: msg }, { status: 400 });
+      }
+    }
+
+    const hasDataUpdates = Object.keys(data).length > 0;
+    if (!hasDataUpdates && !didRenameBrand) {
       return NextResponse.json({ error: "No fields to update" }, { status: 400 });
     }
 
-    const business = await prisma.business.update({
-      where: { id: businessId },
-      data,
-    });
+    if (hasDataUpdates) {
+      await prisma.business.update({
+        where: { id: businessId },
+        data,
+      });
+    }
 
     if (ownerId && "notificationPhone" in body) {
       const current = await prisma.business.findUnique({ where: { id: businessId }, select: { ownerId: true } });
@@ -151,7 +210,28 @@ export async function PATCH(req: NextRequest) {
         await prisma.owner.update({ where: { id: ownerId }, data: { phone: phoneVal } });
       }
     }
-    return NextResponse.json(business);
+
+    const business = await prisma.business.findUnique({ where: { id: businessId } });
+    if (!business) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+    const response = NextResponse.json(business);
+    if (ownerId && session) {
+      try {
+        const s = JSON.parse(session) as Record<string, unknown>;
+        response.cookies.set(
+          "session",
+          JSON.stringify({
+            ...s,
+            slug: business.slug,
+            businessName: business.name,
+          }),
+          SESSION_COOKIE_OPTIONS
+        );
+      } catch {
+        /* ignore cookie refresh */
+      }
+    }
+    return response;
   } catch (error) {
     console.error("PATCH /api/business", error);
     const message = error instanceof Error ? error.message : "Server error";

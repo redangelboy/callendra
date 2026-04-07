@@ -1,7 +1,92 @@
 import { Resend } from "resend";
-import { sendSMS } from "./sms";
+import { sendSMS, normalizePhoneForSms } from "./sms";
+import { sendBookingConfirmation } from "@/lib/email/send";
+import { resolveGoogleMapsDirectionsUrl } from "@/lib/google-maps-link";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
+
+/**
+ * Client confirmation after booking: web/dashboard = email (if provided) + SMS (if phone).
+ * Voice (phone) agent = SMS only.
+ */
+export async function notifyClientBookingConfirmed({
+  source,
+  clientEmail,
+  clientPhone,
+  clientName,
+  businessName,
+  businessAddress,
+  googleMapsPlaceUrl,
+  staffName,
+  serviceName,
+  date,
+  time,
+  bookingLink,
+}: {
+  source: "web" | "dashboard" | "phone";
+  clientEmail?: string | null;
+  clientPhone?: string | null;
+  clientName: string;
+  businessName: string;
+  /** Saved business address → fallback Maps search */
+  businessAddress?: string | null;
+  /** Pasted Google Maps "Share" link for this location (preferred) */
+  googleMapsPlaceUrl?: string | null;
+  staffName: string;
+  serviceName: string;
+  date: string;
+  time: string;
+  bookingLink: string;
+}) {
+  const timePart = time || "";
+  const whenLine = timePart ? `${date} at ${timePart} (Central)` : date;
+  const mapsUrl = resolveGoogleMapsDirectionsUrl(
+    googleMapsPlaceUrl ?? undefined,
+    businessName,
+    businessAddress ?? undefined
+  );
+  const mapsSmsSuffix = mapsUrl ? `\nDirections: ${mapsUrl}` : "";
+
+  if (source === "phone") {
+    const to = normalizePhoneForSms(clientPhone);
+    if (to) {
+      await sendSMS(
+        to,
+        `Callendra: Hi ${clientName}, your appointment at ${businessName} is confirmed.\n${serviceName} with ${staffName}\n${whenLine}${mapsSmsSuffix}\n\nQuestions? Call the business.`
+      );
+    }
+    return;
+  }
+
+  const email = (clientEmail && String(clientEmail).trim()) || "";
+  if (email) {
+    try {
+      await sendBookingConfirmation({
+        clientEmail: email,
+        clientName,
+        businessName,
+        staffName,
+        serviceName,
+        date,
+        time,
+        bookingLink,
+        businessEmail: undefined,
+        businessAddress,
+        googleMapsPlaceUrl,
+      });
+    } catch (e) {
+      console.error("Client confirmation email error:", e);
+    }
+  }
+
+  const to = normalizePhoneForSms(clientPhone);
+  if (to) {
+    await sendSMS(
+      to,
+      `Callendra: Hi ${clientName}, your appointment at ${businessName} is confirmed.\n${serviceName} with ${staffName}\n${whenLine}${mapsSmsSuffix}\nBook again: ${bookingLink}`
+    );
+  }
+}
 
 export async function notifyCancelRequest({
   ownerEmail,
