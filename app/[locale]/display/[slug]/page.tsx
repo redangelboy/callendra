@@ -1,9 +1,117 @@
 "use client";
+import type { CSSProperties } from "react";
 import { Suspense, useState, useEffect, useCallback } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { StaffAvatar } from "@/components/staff-avatar";
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+/** Split staff into two rows (ceil/floor) so many columns don’t stack as 4+ tiny rows. */
+function splitIntoTwoRows<T>(items: T[]): [T[], T[]] {
+  if (items.length === 0) return [[], []];
+  const mid = Math.ceil(items.length / 2);
+  return [items.slice(0, mid), items.slice(mid)];
+}
+
+function gridColsStyle(columnCount: number): CSSProperties {
+  const n = Math.max(1, columnCount);
+  return { gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))` };
+}
+
+function StaffColumn({
+  s,
+  now,
+  formatTime,
+}: {
+  s: any;
+  now: Date;
+  formatTime: (date: string) => string;
+}) {
+  return (
+    <section className="flex min-h-0 h-full min-w-0 flex-col overflow-hidden rounded-xl sm:rounded-2xl border border-[var(--callendra-border)] bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))]">
+      <div className="shrink-0 flex items-center gap-2 px-2 py-2 sm:px-3 sm:py-2.5 min-w-0 border-b border-[var(--callendra-border)]/60">
+        <StaffAvatar
+          name={s.name}
+          photo={s.photo}
+          size="display"
+          className="!w-9 !h-9 !min-w-[2.25rem] !min-h-[2.25rem] !text-[10px] sm:!w-11 sm:!h-11 sm:!min-w-[2.75rem] sm:!min-h-[2.75rem] sm:!text-xs md:!w-12 md:!h-12"
+        />
+        <div className="min-w-0 flex-1">
+          <div className="font-bold text-sm sm:text-base truncate">{s.name}</div>
+          <div className="text-[10px] sm:text-xs text-[var(--callendra-text-secondary)]">
+            {s.appointments.length} appt{s.appointments.length !== 1 ? "s" : ""}
+          </div>
+        </div>
+      </div>
+      <div
+        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-1.5 py-1.5 sm:px-2 sm:py-2 [scrollbar-width:thin] [scrollbar-color:var(--callendra-border)_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[color-mix(in_srgb,var(--callendra-text-primary)_35%,transparent)]"
+      >
+        {s.appointments.length === 0 ? (
+          <div className="flex h-full min-h-[4rem] flex-col items-center justify-center gap-1 py-4 text-[var(--callendra-text-secondary)]">
+            <div className="text-2xl opacity-80" aria-hidden>
+              📅
+            </div>
+            <div className="text-xs sm:text-sm">No appointments</div>
+          </div>
+        ) : (
+          <ul className="flex flex-col gap-1.5 sm:gap-2">
+            {s.appointments.map((apt: any) => {
+              const aptTime = new Date(apt.date);
+              const duration = apt.service?.duration || 30;
+              const aptEnd = new Date(aptTime.getTime() + duration * 60 * 1000);
+              const isInProgress = aptTime <= now && aptEnd > now;
+              const isNext =
+                !isInProgress &&
+                s.appointments.findIndex((a: any) => new Date(a.date) >= now) === s.appointments.indexOf(apt);
+              return (
+                <li key={apt.id}>
+                  <div
+                    className={`rounded-lg px-2 py-2 sm:px-2.5 sm:py-2 border transition min-w-0 ${
+                      isInProgress
+                        ? "bg-green-500/20 border-green-500/50"
+                        : isNext
+                          ? "bg-green-500/10 border-green-500/30"
+                          : "bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border-[var(--callendra-border)]"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2 min-w-0">
+                      <div className="min-w-0 flex-1">
+                        <div
+                          className={`text-xs sm:text-sm md:text-base font-semibold leading-snug break-words line-clamp-2 ${
+                            isNext ? "text-[var(--callendra-accent)]" : "text-[var(--callendra-text-primary)]"
+                          }`}
+                        >
+                          {apt.clientName}
+                        </div>
+                        <div className="text-[10px] sm:text-xs text-[var(--callendra-text-secondary)] break-words line-clamp-2 mt-0.5">
+                          {apt.service?.name}
+                        </div>
+                      </div>
+                      <div className="shrink-0 flex flex-col items-end gap-0.5 text-right">
+                        <div
+                          className={`font-mono font-bold text-sm sm:text-base md:text-lg tabular-nums leading-none ${
+                            isNext || isInProgress ? "text-[var(--callendra-accent)]" : "text-[var(--callendra-text-primary)]"
+                          }`}
+                        >
+                          {formatTime(apt.date)}
+                        </div>
+                        {isNext && (
+                          <span className="text-[9px] sm:text-[10px] uppercase tracking-wide text-[var(--callendra-success)] font-semibold">
+                            Next
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    </section>
+  );
+}
 
 function initSocket(slug: string, onEvent: () => void) {
   const win = window as any;
@@ -100,7 +208,7 @@ function DisplayPageInner() {
 
   if (access === "loading") {
     return (
-      <div className="min-h-screen overflow-x-hidden bg-[var(--callendra-bg)] flex items-center justify-center px-4">
+      <div className="h-full min-h-0 overflow-hidden overflow-x-hidden bg-[var(--callendra-bg)] flex items-center justify-center px-4">
         <div className="text-[var(--callendra-text-primary)] text-lg sm:text-xl animate-pulse text-center">
           Loading display...
         </div>
@@ -110,7 +218,7 @@ function DisplayPageInner() {
 
   if (access === "denied") {
     return (
-      <div className="min-h-screen overflow-x-hidden bg-[var(--callendra-bg)] flex flex-col items-center justify-center px-4 sm:px-6 text-center">
+      <div className="h-full min-h-0 flex-1 overflow-x-hidden overflow-y-auto bg-[var(--callendra-bg)] flex flex-col items-center justify-center px-4 sm:px-6 text-center">
         <div className="text-4xl sm:text-5xl mb-4" aria-hidden>
           🔒
         </div>
@@ -126,138 +234,66 @@ function DisplayPageInner() {
 
   if (!business) {
     return (
-      <div className="min-h-screen overflow-x-hidden bg-[var(--callendra-bg)] flex items-center justify-center px-4">
+      <div className="h-full min-h-0 overflow-hidden overflow-x-hidden bg-[var(--callendra-bg)] flex items-center justify-center px-4">
         <div className="text-[var(--callendra-text-primary)] text-lg sm:text-xl text-center">Display not available</div>
       </div>
     );
   }
 
-  const staffColCount = Math.min(Math.max(staff.length, 1), 4);
-  const lgStaffGridClass =
-    staffColCount === 1
-      ? "lg:grid-cols-1"
-      : staffColCount === 2
-        ? "lg:grid-cols-2"
-        : staffColCount === 3
-          ? "lg:grid-cols-3"
-          : "lg:grid-cols-4";
+  const [staffRow1, staffRow2] = splitIntoTwoRows(byStaff);
+  /** Same column count on both rows so every card has equal width; last cells stay empty when rows differ (e.g. 7 + 6). */
+  const columnCount = Math.max(staffRow1.length, staffRow2.length, 1);
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-[var(--callendra-bg)] text-[var(--callendra-text-primary)] p-3 sm:p-4 md:p-5 lg:p-6 min-w-0 max-w-[100vw]">
-      <header className="flex flex-col gap-4 sm:gap-5 md:gap-6 lg:flex-row lg:justify-between lg:items-start mb-6 sm:mb-8 border-b border-[var(--callendra-border)] pb-4 sm:pb-5 md:pb-6 min-w-0">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 min-w-0 flex-1">
+    <main
+      className="flex h-full min-h-0 flex-col overflow-hidden bg-[var(--callendra-bg)] text-[var(--callendra-text-primary)] min-w-0 max-w-[100vw] pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)] px-2 sm:px-3 md:px-4"
+    >
+      <header className="shrink-0 flex flex-col gap-2 sm:gap-3 sm:flex-row sm:justify-between sm:items-center border-b border-[var(--callendra-border)] pb-2 sm:pb-3 min-w-0">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 min-h-0">
           {business.logo && (
             <img
               src={business.logo}
               alt=""
-              className="w-14 h-14 sm:w-24 sm:h-24 lg:w-32 lg:h-32 shrink-0 rounded-full object-contain border-2 border-[var(--callendra-border)]"
+              className="w-10 h-10 sm:w-14 sm:h-14 md:w-16 md:h-16 shrink-0 rounded-full object-contain border-2 border-[var(--callendra-border)]"
             />
           )}
           <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold tracking-tight break-words hyphens-auto">
+            <h1 className="text-base sm:text-xl md:text-2xl lg:text-3xl font-bold tracking-tight break-words hyphens-auto leading-tight">
               {business.parentSlug && business.locationSlug ? `${business.parentName || business.name}` : business.name}
               {business.parentSlug && business.locationSlug && business.name ? ` - ${business.name}` : ""}
             </h1>
-            <p className="text-[var(--callendra-text-secondary)] mt-1 text-xs sm:text-sm lg:text-base">
+            <p className="text-[var(--callendra-text-secondary)] mt-0.5 text-[10px] sm:text-xs md:text-sm truncate">
               {DAYS[now.getDay()]}, {now.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
             </p>
           </div>
         </div>
-        <div className="text-center sm:text-right shrink-0 w-full sm:w-auto lg:pt-0">
-          <div className="text-3xl sm:text-4xl lg:text-5xl font-mono font-bold text-[var(--callendra-accent)] tabular-nums">
+        <div className="text-left sm:text-right shrink-0 flex flex-row sm:flex-col items-baseline sm:items-end justify-between sm:justify-start gap-x-3 gap-y-0">
+          <div className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-mono font-bold text-[var(--callendra-accent)] tabular-nums leading-none">
             {formatClock(now)}
           </div>
-          <div className="text-[var(--callendra-text-secondary)] text-xs sm:text-sm mt-1">
-            {appointments.length} appointments today
+          <div className="text-[var(--callendra-text-secondary)] text-[10px] sm:text-xs whitespace-nowrap">
+            {appointments.length} today
           </div>
         </div>
       </header>
 
-      <div
-        className={`grid min-w-0 grid-cols-1 gap-4 sm:gap-5 md:gap-5 lg:gap-6 ${staff.length > 1 ? "sm:grid-cols-2" : ""} ${lgStaffGridClass}`}
-      >
-        {byStaff.map((s: any) => (
-          <section
-            key={s.id}
-            className="min-w-0 bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] rounded-2xl overflow-hidden border border-[var(--callendra-border)]"
-          >
-            <div className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] px-3 py-3 sm:px-5 sm:py-4 flex items-center gap-3 sm:gap-4 min-w-0">
-              <StaffAvatar
-                name={s.name}
-                photo={s.photo}
-                size="display"
-                className="!w-14 !h-14 !min-w-[3.5rem] !min-h-[3.5rem] !text-sm sm:!w-16 sm:!h-16 sm:!min-w-[4rem] sm:!min-h-[4rem] sm:!text-base lg:!w-24 lg:!h-24 lg:!min-w-[6rem] lg:!min-h-[6rem] lg:!text-xl"
-              />
-              <div className="min-w-0 flex-1">
-                <div className="font-bold text-base sm:text-lg truncate sm:whitespace-normal sm:break-words">{s.name}</div>
-                <div className="text-xs text-[var(--callendra-text-secondary)]">{s.appointments.length} appointments</div>
-              </div>
-            </div>
-            <div className="p-3 sm:p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3 min-w-0">
-              {s.appointments.length === 0 ? (
-                <div className="text-center py-8 text-[var(--callendra-text-secondary)] sm:col-span-2 lg:col-span-1">
-                  <div className="text-3xl mb-2">📅</div>
-                  <div className="text-sm">No appointments</div>
-                </div>
-              ) : (
-                s.appointments.map((apt: any) => {
-                  const aptTime = new Date(apt.date);
-                  const duration = apt.service?.duration || 30;
-                  const aptEnd = new Date(aptTime.getTime() + duration * 60 * 1000);
-                  const isInProgress = aptTime <= now && aptEnd > now;
-                  const isNext =
-                    !isInProgress &&
-                    s.appointments.findIndex((a: any) => new Date(a.date) >= now) === s.appointments.indexOf(apt);
-                  return (
-                    <div
-                      key={apt.id}
-                      className={`rounded-xl px-3 py-3 sm:px-4 sm:py-3 lg:px-5 lg:py-4 border transition min-w-0 ${
-                        isInProgress
-                          ? "bg-green-500/20 border-green-500/50"
-                          : isNext
-                            ? "bg-green-500/10 border-green-500/30"
-                            : "bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border-[var(--callendra-border)]"
-                      }`}
-                    >
-                      <div className="flex flex-col gap-2 min-w-0 lg:flex-row lg:justify-between lg:items-start lg:gap-4">
-                        <div className="flex flex-col gap-1 min-w-0 lg:flex-1 lg:min-w-0">
-                          <div
-                            className={`text-xl sm:text-lg lg:text-2xl xl:text-3xl font-semibold break-words leading-snug ${
-                              isNext ? "text-[var(--callendra-accent)]" : "text-[var(--callendra-text-primary)]"
-                            }`}
-                          >
-                            {apt.clientName}
-                          </div>
-                          <div className="text-base sm:text-sm lg:text-lg xl:text-xl text-[var(--callendra-text-secondary)] break-words">
-                            {apt.service?.name}
-                          </div>
-                          <div className="text-sm text-[var(--callendra-text-secondary)] pt-0.5 lg:hidden truncate">
-                            {s.name}
-                          </div>
-                        </div>
-                        <div className="flex flex-row items-center justify-between gap-3 sm:justify-start lg:flex-col lg:items-end lg:justify-start lg:shrink-0 lg:gap-1 lg:pt-0.5">
-                          <div
-                            className={`font-mono font-bold text-2xl sm:text-xl lg:text-2xl xl:text-3xl tabular-nums ${
-                              isNext || isInProgress ? "text-[var(--callendra-accent)]" : "text-[var(--callendra-text-primary)]"
-                            }`}
-                          >
-                            {formatTime(apt.date)}
-                          </div>
-                          {isNext && (
-                            <div className="text-xs sm:text-sm text-[var(--callendra-success)] font-medium lg:text-right">NEXT</div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </section>
-        ))}
+      {/* Two fixed rows; shared column count so card widths match — empty slots on the shorter row. */}
+      <div className="flex flex-1 min-h-0 flex-col gap-2 overflow-hidden sm:gap-2.5">
+        <div className="grid min-h-0 flex-1 gap-2 sm:gap-2.5" style={gridColsStyle(columnCount)}>
+          {staffRow1.map((s: any) => (
+            <StaffColumn key={s.id} s={s} now={now} formatTime={formatTime} />
+          ))}
+        </div>
+        {staffRow2.length > 0 && (
+          <div className="grid min-h-0 flex-1 gap-2 sm:gap-2.5" style={gridColsStyle(columnCount)}>
+            {staffRow2.map((s: any) => (
+              <StaffColumn key={s.id} s={s} now={now} formatTime={formatTime} />
+            ))}
+          </div>
+        )}
       </div>
-      <footer className="mt-6 sm:mt-8 text-center text-[var(--callendra-text-secondary)] opacity-80 text-[10px] sm:text-xs px-1 break-words">
-        Auto-refreshes every 30 seconds · Powered by Callendra
+      <footer className="shrink-0 pt-1 pb-0.5 text-center text-[var(--callendra-text-secondary)] opacity-75 text-[9px] sm:text-[10px] px-1 leading-tight">
+        Auto-refresh 30s · Callendra
       </footer>
     </main>
   );
@@ -267,7 +303,7 @@ export default function DisplayPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen overflow-x-hidden bg-[var(--callendra-bg)] flex items-center justify-center px-4">
+        <div className="h-full min-h-0 overflow-hidden overflow-x-hidden bg-[var(--callendra-bg)] flex items-center justify-center px-4">
           <div className="text-[var(--callendra-text-primary)] text-lg sm:text-xl animate-pulse">Loading display...</div>
         </div>
       }

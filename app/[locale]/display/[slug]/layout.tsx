@@ -27,7 +27,10 @@ export default async function DisplayLayout({
   return (
     <>
       <CallendraThemeStyle preset={preset} variant="override" />
-      {children}
+      {/* Lock viewport height so only per-column lists scroll (kiosk / TV / tablet) */}
+      <div className="flex h-[100dvh] max-h-[100dvh] w-full min-h-0 flex-col overflow-hidden bg-[var(--callendra-bg)]">
+        {children}
+      </div>
     </>
   );
 }
