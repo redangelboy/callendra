@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import bcrypt from "bcryptjs";
+import { suspendedLoginResponse } from "@/lib/suspended-login";
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
 const prisma = new PrismaClient({ adapter });
@@ -22,6 +23,10 @@ export async function POST(req: NextRequest) {
     const valid = await bcrypt.compare(password, staffUser.password);
     if (!valid) {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
+    }
+
+    if (!staffUser.business.active) {
+      return suspendedLoginResponse();
     }
 
     const response = NextResponse.json({

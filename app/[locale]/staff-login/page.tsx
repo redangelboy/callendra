@@ -18,11 +18,12 @@ export default function StaffLoginPage() {
       body: JSON.stringify({ email, password }),
     });
     const data = await res.json();
-    if (data.success) {
-      router.push("/dashboard");
-    } else {
-      setError(data.error || "Invalid credentials");
+    if (!res.ok || !data.success) {
+      setError(data.message || data.error || "Invalid credentials");
+      setLoading(false);
+      return;
     }
+    router.push("/dashboard");
     setLoading(false);
   }
 

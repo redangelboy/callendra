@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import bcrypt from "bcryptjs";
-import { getMainBusinessIdForOwner } from "@/lib/main-business";
+import { getOwnerLoginBusinessResult } from "@/lib/main-business";
+import { suspendedLoginResponse } from "@/lib/suspended-login";
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
 const prisma = new PrismaClient({ adapter });
@@ -22,11 +23,18 @@ export async function POST(req: NextRequest) {
       const valid = await bcrypt.compare(password, owner.password);
       if (!valid) return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
 
-      const mainId = await getMainBusinessIdForOwner(prisma, owner.id);
-      if (!mainId) return NextResponse.json({ error: "No business found" }, { status: 400 });
+      const outcome = await getOwnerLoginBusinessResult(prisma, owner.id);
+      if (outcome.status === "no_business") {
+        return NextResponse.json(
+          { success: false, message: "No business found", error: "no_business" },
+          { status: 400 }
+        );
+      }
+      if (outcome.status === "suspended") {
+        return suspendedLoginResponse();
+      }
 
-      const business = await prisma.business.findUnique({ where: { id: mainId } });
-      if (!business) return NextResponse.json({ error: "Business not found" }, { status: 404 });
+      const business = outcome.business;
 
       const response = NextResponse.json({
         success: true,
@@ -55,6 +63,8 @@ export async function POST(req: NextRequest) {
 
       const valid = await bcrypt.compare(password, staffUser.password);
       if (!valid) return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
+
+      if (!staffUser.business.active) return suspendedLoginResponse();
 
       const response = NextResponse.json({
         success: true,

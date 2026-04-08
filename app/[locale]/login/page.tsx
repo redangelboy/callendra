@@ -16,7 +16,7 @@ export default function LoginPage() {
         body: JSON.stringify(form),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Invalid credentials");
+      if (!res.ok) throw new Error(data.message || data.error || "Invalid credentials");
       window.location.href = "/en/dashboard";
     } catch (err: any) {
       setError(err.message);

@@ -1,24 +1,48 @@
+import type { Business } from "@prisma/client";
 import { PrismaClient } from "@prisma/client";
 
+export type OwnerLoginBusinessOutcome =
+  | { status: "no_business" }
+  | { status: "suspended" }
+  | { status: "ok"; business: Pick<Business, "id" | "name" | "slug"> };
+
 /**
- * Canonical catalog business for an owner: primary row (empty locationSlug), else oldest active business.
+ * Owner login: distinguish no businesses vs all inactive vs has an active row.
+ */
+export async function getOwnerLoginBusinessResult(
+  prisma: PrismaClient,
+  ownerId: string
+): Promise<OwnerLoginBusinessOutcome> {
+  const anyBusiness = await prisma.business.findFirst({
+    where: { ownerId },
+    select: { id: true },
+  });
+  if (!anyBusiness) return { status: "no_business" };
+
+  const business = await prisma.business.findFirst({
+    where: { ownerId, active: true },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, name: true, slug: true },
+  });
+  if (!business) return { status: "suspended" };
+  return { status: "ok", business };
+}
+
+/**
+ * Oldest active business for an owner (canonical session target when multiple rows exist).
+ * Returns null if none active or owner has no businesses.
  */
 export async function getMainBusinessIdForOwner(prisma: PrismaClient, ownerId: string) {
-  const primary = await prisma.business.findFirst({
-    where: { ownerId, active: true, locationSlug: "" },
-    orderBy: { createdAt: "asc" },
-  });
-  if (primary) return primary.id;
-
-  const fallback = await prisma.business.findFirst({
+  const business = await prisma.business.findFirst({
     where: { ownerId, active: true },
     orderBy: { createdAt: "asc" },
   });
-  return fallback?.id ?? null;
+  return business?.id ?? null;
 }
 
 export function isMainBusiness(b: { locationSlug: string | null | undefined }) {
-  return (b.locationSlug ?? "") === "";
+  const ls = (b.locationSlug ?? "").trim();
+  return ls === "" || ls === "main";
 }
 
 /** Session targets the owner's catalog business row (same id as getMainBusinessIdForOwner), not empty-slug-only. */
@@ -33,6 +57,6 @@ export function isOwnerMainBusinessSession(sessionBusinessId: string, mainBusine
 export function isMainBusinessFromPayload(biz: any): boolean {
   if (!biz) return false;
   if (typeof biz.isMainBusiness === "boolean") return biz.isMainBusiness;
-  const ls = biz.locationSlug;
-  return ls == null || ls === "" || String(ls).trim() === "";
+  const ls = String(biz.locationSlug ?? "").trim();
+  return ls === "" || ls === "main";
 }
