@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { generateUniqueInviteCode } from "@/lib/invite-code";
+import { getSuperAdminFromRequest } from "@/lib/super-admin-auth";
+import { sendInviteCodeEmail } from "@/lib/email/send-invite-code";
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL!,
@@ -10,12 +12,6 @@ const prisma = new PrismaClient({ adapter });
 
 function unauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-}
-
-function checkAdmin(req: NextRequest): boolean {
-  const secret = process.env.ADMIN_SECRET?.trim();
-  if (!secret) return false;
-  return req.headers.get("x-admin-secret") === secret;
 }
 
 function statusForRow(row: {
@@ -31,7 +27,7 @@ function statusForRow(row: {
 }
 
 export async function GET(req: NextRequest) {
-  if (!checkAdmin(req)) return unauthorized();
+  if (!(await getSuperAdminFromRequest(req))) return unauthorized();
   try {
     const rows = await prisma.inviteCode.findMany({
       orderBy: { createdAt: "desc" },
@@ -55,7 +51,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  if (!checkAdmin(req)) return unauthorized();
+  if (!(await getSuperAdminFromRequest(req))) return unauthorized();
   try {
     const body = await req.json().catch(() => ({}));
     const emailRaw = body.email;
@@ -78,9 +74,39 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    if (email) {
+      try {
+        await sendInviteCodeEmail(email, code);
+      } catch (mailErr) {
+        console.error("Invite email error:", mailErr);
+      }
+    }
+
     return NextResponse.json({ code });
   } catch (e) {
     console.error("POST /api/admin/invite-codes", e);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  }
+}
+
+export async function PATCH(req: NextRequest) {
+  if (!(await getSuperAdminFromRequest(req))) return unauthorized();
+  try {
+    const body = await req.json().catch(() => ({}));
+    const id = typeof body.id === "string" ? body.id : "";
+    const active = typeof body.active === "boolean" ? body.active : undefined;
+    if (!id || active === undefined) {
+      return NextResponse.json({ error: "id and active required" }, { status: 400 });
+    }
+
+    await prisma.inviteCode.update({
+      where: { id },
+      data: { active },
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (e) {
+    console.error("PATCH /api/admin/invite-codes", e);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

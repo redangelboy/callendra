@@ -167,3 +167,10 @@ model InviteCode {
   expiresAt DateTime?
   active    Boolean   @default(true)
 }
+
+model SuperAdmin {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+}
