@@ -21,16 +21,16 @@ export function getPublicRegisterUrl(): string {
 /**
  * Subject per product request; body matches “clean HTML” spec.
  */
-export async function sendInviteCodeEmail(to: string, code: string): Promise<void> {
+export async function sendInviteCodeEmail(to: string, code: string) {
   if (!process.env.RESEND_API_KEY) {
     console.warn("sendInviteCodeEmail: RESEND_API_KEY missing, skipping email");
-    return;
+    return undefined;
   }
   const registerUrl = getPublicRegisterUrl();
   const safeCode = escapeHtml(code);
   const safeUrl = escapeHtml(registerUrl);
 
-  await resend.emails.send({
+  return resend.emails.send({
     from: "Callendra <callendra@voxproai.com>",
     to,
     subject: "You're invited to Callendra 🎉",

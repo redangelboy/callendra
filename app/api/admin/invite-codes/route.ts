@@ -76,9 +76,11 @@ export async function POST(req: NextRequest) {
 
     if (email) {
       try {
-        await sendInviteCodeEmail(email, code);
-      } catch (mailErr) {
-        console.error("Invite email error:", mailErr);
+        console.log("Sending invite email to:", email);
+        const result = await sendInviteCodeEmail(email, code);
+        console.log("Invite email result:", result);
+      } catch (err) {
+        console.error("Invite email error:", err);
       }
     }
 
