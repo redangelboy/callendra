@@ -10,6 +10,16 @@ const allowedDevOrigins = (process.env.ALLOWED_DEV_ORIGINS || "192.168.1.146")
 const nextConfig = {
   ...(allowedDevOrigins.length ? { allowedDevOrigins } : {}),
 
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "images.unsplash.com",
+        pathname: "/**",
+      },
+    ],
+  },
+
   devIndicators: false,
   async headers() {
     return [

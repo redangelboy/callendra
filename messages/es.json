@@ -3,17 +3,33 @@
       "login": "Iniciar sesión",
       "register": "Empieza gratis"
     },
+    "landingNav": {
+      "businessTypes": "Tipos de negocio",
+      "features": "Funciones",
+      "pricing": "Precios",
+      "menu": "Menú"
+    },
+    "categoryGrid": {
+      "eyebrow": "Sectores que atendemos",
+      "title": "Reservas que se sienten fáciles",
+      "subtitle": "Tu web, calendario, pantalla walk-in y agente de voz con IA — sin comisiones de marketplace.",
+      "salon": "Salón",
+      "barber": "Barbería",
+      "nails": "Uñas",
+      "spa": "Spa & sauna",
+      "medspa": "Medspa",
+      "massage": "Y más…"
+    },
     "hero": {
-      "badge": "✨ Para barberías, salones, spas y más",
       "title": "Tu negocio merece su propio sistema de reservas",
       "subtitle": "Web profesional + reservaciones online + agente AI que contesta llamadas. Todo en uno, sin comisiones.",
-      "cta": "Comienza gratis 14 días",
+      "cta": "Ask for a demo",
       "pricing": "Ver precios"
     },
     "features": {
       "title": "Todo lo que necesitas",
       "items": [
-        { "icon": "🌐", "title": "Tu propia web", "desc": "Sitio profesional con tu logo, colores y dominio propio. Sin mencionar Reservify." },
+        { "icon": "🌐", "title": "Tu propia web", "desc": "Sitio profesional con tu logo, colores y dominio propio. Solo tu marca." },
         { "icon": "📅", "title": "Reservas 24/7", "desc": "Tus clientes agendan en línea cualquier hora. Tú recibes notificación automática." },
         { "icon": "📞", "title": "Agente AI en llamadas", "desc": "Un agente de voz contesta llamadas, da información y agenda citas directo en tu calendario." },
         { "icon": "📺", "title": "Pantalla en tu local", "desc": "Muestra el horario del día en tiempo real para tu equipo y clientes en el negocio." },
@@ -26,10 +42,10 @@
       "month": "/mes",
       "cta": "Empezar ahora",
       "plans": [
-        { "name": "Starter", "price": "$99", "desc": "Para empezar", "features": ["Web profesional", "Reservas online 24/7", "Notificaciones SMS/email", "Soporte técnico"] },
-        { "name": "Pro", "price": "$179", "desc": "Más popular", "features": ["Todo en Starter", "Dashboard con AI", "Reportes mensuales", "Cambios de contenido"], "highlight": true },
-        { "name": "Elite", "price": "$299", "desc": "Máximo impacto", "features": ["Todo en Pro", "Agente AI en llamadas", "Pantalla para tu local", "SEO básico incluido"] }
+        { "name": "Starter", "price": "$99 USD", "desc": "Esenciales del software", "features": ["Software", "Display", "Booking público", "Sitio web profesional"] },
+        { "name": "Pro", "price": "$349 USD", "desc": "Más popular", "features": ["Todo en Starter", "Agente de voz AI", "Notificaciones email/SMS", "Landing page", "Soporte técnico"], "highlight": true },
+        { "name": "Elite", "price": "$449 USD", "desc": "Máximo impacto", "features": ["Todo en Pro", "Chatbot AI completo"] }
       ]
     },
-    "footer": "© 2025 Reservify · Todos los derechos reservados"
+    "footer": "© 2026 Callendra · Todos los derechos reservados"
   }
