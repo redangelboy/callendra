@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { useTranslations } from "next-intl";
 import { Link } from "../../lib/navigation";
 
@@ -9,7 +10,16 @@ export default function Home() {
 
       {/* Nav */}
       <nav className="flex justify-between items-center px-8 py-6 border-b border-[var(--callendra-border)]">
-        <span className="text-xl font-bold tracking-tight">Callendra</span>
+        <Link href="/" className="flex items-center shrink-0 min-w-0">
+          <Image
+            src="/callendra-logo.png"
+            alt="Callendra"
+            width={220}
+            height={56}
+            className="h-10 w-auto max-w-[min(220px,55vw)] object-contain object-left"
+            priority
+          />
+        </Link>
         <div className="flex items-center gap-4">
           <Link href="/" locale="es" className="text-xs border border-[var(--callendra-border)] px-3 py-1 rounded-full hover:bg-[color-mix(in_srgb,var(--callendra-text-primary)_10%,transparent)] transition">
             ES
@@ -27,7 +37,16 @@ export default function Home() {
       </nav>
 
       {/* Hero */}
-      <section className="flex flex-col items-center text-center px-8 py-32 gap-6">
+      <section className="flex flex-col items-center text-center px-8 py-24 sm:py-32 gap-6">
+        <Image
+          src="/callendra-logo.png"
+          alt=""
+          width={400}
+          height={100}
+          className="h-20 sm:h-24 md:h-28 w-auto max-w-[min(400px,90vw)] object-contain"
+          priority
+          aria-hidden={true}
+        />
         <span className="text-sm bg-[color-mix(in_srgb,var(--callendra-text-primary)_10%,var(--callendra-bg))] text-[var(--callendra-text-primary)] px-4 py-1 rounded-full">
           {t("hero.badge")}
         </span>

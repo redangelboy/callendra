@@ -32,7 +32,9 @@ export default async function WalkInLayout({
   return (
     <>
       <CallendraThemeStyle preset={preset} variant="override" />
-      {children}
+      <div className="flex min-h-[100dvh] h-[100dvh] max-h-[100dvh] w-full flex-col overflow-hidden bg-[var(--callendra-bg)] pl-[env(safe-area-inset-left,0px)] pr-[env(safe-area-inset-right,0px)]">
+        {children}
+      </div>
     </>
   );
 }

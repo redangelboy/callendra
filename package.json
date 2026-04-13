@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "eslint",
     "migrate:catalog": "npx tsx scripts/migrate-location-catalog.ts",
-    "create-admin": "npx tsx scripts/create-admin.ts"
+    "create-admin": "npx tsx scripts/create-admin.ts",
+    "generate:pwa-icons": "node scripts/generate-pwa-icons.mjs"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.6.0",
@@ -42,6 +43,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.1",
+    "sharp": "^0.34.5",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

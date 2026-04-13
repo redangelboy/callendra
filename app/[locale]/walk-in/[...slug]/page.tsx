@@ -4,7 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { PublicBookingFlow } from "@/components/public-booking-flow";
 
 const shell =
-  "flex h-[100dvh] max-h-[100dvh] min-h-0 w-full min-w-0 flex-col items-center justify-center overflow-hidden bg-[var(--callendra-bg)] px-4 pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)]";
+  "flex h-full min-h-0 w-full min-w-0 flex-1 flex-col items-center justify-center overflow-hidden bg-[var(--callendra-bg)] px-4 pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)]";
 
 function WalkInGate() {
   const searchParams = useSearchParams();
@@ -32,14 +32,16 @@ function WalkInGate() {
 
 export default function WalkInPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex h-[100dvh] max-h-[100dvh] items-center justify-center bg-[var(--callendra-bg)]">
-          <div className="text-[var(--callendra-text-primary)] animate-pulse">Loading...</div>
-        </div>
-      }
-    >
-      <WalkInGate />
-    </Suspense>
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+      <Suspense
+        fallback={
+          <div className="flex h-[100dvh] max-h-[100dvh] items-center justify-center bg-[var(--callendra-bg)]">
+            <div className="text-[var(--callendra-text-primary)] animate-pulse">Loading...</div>
+          </div>
+        }
+      >
+        <WalkInGate />
+      </Suspense>
+    </div>
   );
 }

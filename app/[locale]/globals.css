@@ -2,6 +2,13 @@
 
 /* Callendra marketing (landing, login, register): fijo, no depende del tema del negocio */
 @layer base {
+  body {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
   :root {
     --callendra-bg: #000000;
     --callendra-surface: #0a0a0a;

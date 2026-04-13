@@ -359,7 +359,7 @@ export default function DashboardPage() {
             )}
           </div>
           <button
-            onClick={() => fetch("/api/auth/logout", { method: "POST" }).then(() => window.location.href = "/en/login")}
+            onClick={() => fetch("/api/auth/logout", { method: "POST" }).then(() => (window.location.href = "/en/login"))}
             className="text-sm text-[var(--callendra-text-secondary)] hover:opacity-90 transition"
           >
             Sign out
