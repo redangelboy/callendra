@@ -50,6 +50,21 @@ export default function ProfilePage() {
   const [brandSlugInput, setBrandSlugInput] = useState("");
   const [initialBrandSlug, setInitialBrandSlug] = useState("");
   const [confirmBrandSlug, setConfirmBrandSlug] = useState(false);
+  const [locationSlug, setLocationSlug] = useState("");
+  const [ownerEmail, setOwnerEmail] = useState("");
+
+  const showOwnerEmailField = useMemo(() => {
+    if (!isOwner) return false;
+    const ls = locationSlug.trim();
+    return ls === "" || ls === "main";
+  }, [isOwner, locationSlug]);
+
+  /** Main brand row with real branch slugs (not just "main"): tokens live on each location profile. */
+  const hideDisplayWalkInForMainWithBranches = useMemo(() => {
+    if (!isMainBusiness || mainLocationLinks.length === 0) return false;
+    const ls = locationSlug.trim();
+    return ls === "" || ls === "main";
+  }, [isMainBusiness, mainLocationLinks.length, locationSlug]);
 
   const displayUrl = useMemo(() => {
     if (typeof window === "undefined" || !slug || !displayToken) return "";
@@ -127,6 +142,8 @@ export default function ProfilePage() {
         typeof tp === "string" && isValidThemeId(tp) ? tp : DEFAULT_THEME_ID,
     });
     setSlug(data.slug || "");
+    setLocationSlug(data.locationSlug != null ? String(data.locationSlug) : "");
+    setOwnerEmail(typeof data.ownerEmail === "string" ? data.ownerEmail : "");
 
     const isMain = !!data.isMainBusiness;
     setIsMainBusiness(isMain);
@@ -314,6 +331,9 @@ export default function ProfilePage() {
         body.brandSlug = normalizedBrand;
         body.confirmBrandSlugChange = true;
       }
+      if (showOwnerEmailField) {
+        body.ownerEmail = ownerEmail;
+      }
 
       const res = await fetch("/api/business", {
         method: "PATCH",
@@ -342,162 +362,6 @@ export default function ProfilePage() {
       <div className="max-w-2xl mx-auto px-8 py-10">
         <h1 className="text-2xl font-bold mb-2">Business Profile</h1>
         <p className="text-[var(--callendra-text-secondary)] text-sm mb-8">Update your business information.</p>
-        <div className="border border-[var(--callendra-border)] rounded-2xl p-5 mb-8">
-          {isMainBusiness && hasLocations && mainLocationLinks.length > 0 ? (
-            <>
-              <div className="mb-4">
-                <div className="text-sm font-medium">Your booking links</div>
-                <div className="text-xs text-[var(--callendra-text-secondary)] mt-1">Share these with your clients</div>
-              </div>
-              <ul className="flex flex-col divide-y divide-white/10">
-                {mainLocationLinks.map((row) => (
-                  <li
-                    key={row.id}
-                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-4 py-3 first:pt-0 last:pb-0"
-                  >
-                    <span className="text-sm text-[var(--callendra-text-primary)]">{row.name}</span>
-                    <a
-                      href={`/en${row.path}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm text-[var(--callendra-accent)] hover:opacity-80 transition font-mono break-all sm:text-right"
-                    >
-                      {row.path}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </>
-          ) : (
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div>
-                <div className="text-sm font-medium">Your booking link</div>
-                <div className="text-xs text-[var(--callendra-text-secondary)] mt-1">Share this with your clients</div>
-              </div>
-              <a
-                href={bookingPath ? `/en${bookingPath}` : `/en/book/${slug}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm text-[var(--callendra-accent)] hover:opacity-80 transition font-mono break-all sm:text-right"
-              >
-                {bookingPath || `/book/${slug}`}
-              </a>
-            </div>
-          )}
-        </div>
-
-        {isOwner && (
-          <div className="border border-[var(--callendra-border)] rounded-2xl p-6 flex flex-col gap-4 mb-8">
-            <h2 className="font-semibold">Display screen</h2>
-            <p className="text-sm text-[var(--callendra-text-secondary)]">
-              TV and waiting-room displays use a secret link. Only people with the full URL can open your display.
-            </p>
-            {displayTokenError && (
-              <p className="text-sm text-amber-400/90">{displayTokenError}</p>
-            )}
-            {!displayToken ? (
-              <p className="text-sm text-[var(--callendra-text-secondary)]">No token generated yet.</p>
-            ) : (
-              <>
-                <div>
-                  <div className="text-xs text-[var(--callendra-text-secondary)] mb-1">Current token (masked)</div>
-                  <div className="font-mono text-sm text-[var(--callendra-text-primary)]">{maskedToken}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-[var(--callendra-text-secondary)] mb-1">Full display URL</div>
-                  <div className="font-mono text-xs break-all text-[var(--callendra-accent)]">{displayUrl}</div>
-                </div>
-              </>
-            )}
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                disabled={displayTokenLoading}
-                onClick={handleRegenerateDisplayToken}
-                className="ui-btn-primary px-4 py-2 rounded-xl text-sm font-medium disabled:opacity-50"
-              >
-                {displayTokenLoading ? "Saving…" : displayToken ? "Regenerate token" : "Generate token"}
-              </button>
-              <button
-                type="button"
-                disabled={!displayUrl}
-                onClick={copyDisplayUrl}
-                className="border border-[var(--callendra-border)] px-4 py-2 rounded-xl text-sm font-medium hover:opacity-90 transition disabled:opacity-40"
-              >
-                Copy URL
-              </button>
-            </div>
-          </div>
-        )}
-
-        {isOwner && (
-          <div className="border border-[var(--callendra-border)] rounded-2xl p-6 flex flex-col gap-4 mb-8">
-            <h2 className="font-semibold">Walk-in (iPad)</h2>
-            <p className="text-sm text-[var(--callendra-text-secondary)]">
-              Put this URL on an iPad at your entrance so walk-in clients can book without the public web limits. Only
-              people with the full link can open it (separate secret from the display screen).
-            </p>
-            {walkInTokenError && (
-              <p className="text-sm text-amber-400/90">{walkInTokenError}</p>
-            )}
-            {!walkInToken ? (
-              <p className="text-sm text-[var(--callendra-text-secondary)]">No token generated yet.</p>
-            ) : (
-              <>
-                <div>
-                  <div className="text-xs text-[var(--callendra-text-secondary)] mb-1">Current token (masked)</div>
-                  <div className="font-mono text-sm text-[var(--callendra-text-primary)]">{maskedWalkInToken}</div>
-                </div>
-                {walkInUrlsByLocation.length > 0 ? (
-                  <ul className="flex flex-col gap-4">
-                    {walkInUrlsByLocation.map((row) => (
-                      <li key={row.id}>
-                        <div className="text-xs text-[var(--callendra-text-secondary)] mb-1">{row.name}</div>
-                        <div className="font-mono text-xs break-all text-[var(--callendra-accent)]">{row.url}</div>
-                      </li>
-                    ))}
-                  </ul>
-                ) : walkInUrl ? (
-                  <div>
-                    <div className="text-xs text-[var(--callendra-text-secondary)] mb-1">Full walk-in URL</div>
-                    <div className="font-mono text-xs break-all text-[var(--callendra-accent)]">{walkInUrl}</div>
-                  </div>
-                ) : null}
-              </>
-            )}
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                disabled={walkInTokenLoading}
-                onClick={handleRegenerateWalkInToken}
-                className="ui-btn-primary px-4 py-2 rounded-xl text-sm font-medium disabled:opacity-50"
-              >
-                {walkInTokenLoading ? "Saving…" : walkInToken ? "Regenerate token" : "Generate token"}
-              </button>
-              {walkInUrlsByLocation.length > 0 ? (
-                walkInUrlsByLocation.map((row) => (
-                  <button
-                    key={row.id}
-                    type="button"
-                    onClick={() => copyWalkInUrl(row.url)}
-                    className="border border-[var(--callendra-border)] px-4 py-2 rounded-xl text-sm font-medium hover:opacity-90 transition"
-                  >
-                    Copy — {row.name}
-                  </button>
-                ))
-              ) : (
-                <button
-                  type="button"
-                  disabled={!walkInUrl}
-                  onClick={() => copyWalkInUrl(walkInUrl)}
-                  className="border border-[var(--callendra-border)] px-4 py-2 rounded-xl text-sm font-medium hover:opacity-90 transition disabled:opacity-40"
-                >
-                  Copy URL
-                </button>
-              )}
-            </div>
-          </div>
-        )}
 
         <div className="border border-[var(--callendra-border)] rounded-2xl p-6 flex flex-col gap-4 mb-8">
           <h2 className="font-semibold">Logo</h2>
@@ -518,10 +382,161 @@ export default function ProfilePage() {
         </div>
 
         <div className="border border-[var(--callendra-border)] rounded-2xl p-6 flex flex-col gap-4 mb-8">
+          <h2 className="font-semibold">Basic information</h2>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm text-[var(--callendra-text-secondary)]">Business name</label>
+            <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
+              className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm text-[var(--callendra-text-secondary)]">Business phone</label>
+            <input type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })}
+              className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition" />
+          </div>
+          {showNotificationPhone && (
+            <div className="flex flex-col gap-1">
+              <label className="text-sm text-[var(--callendra-text-secondary)]">Notification phone (optional)</label>
+              <input
+                type="tel"
+                value={form.notificationPhone}
+                onChange={(e) => setForm({ ...form, notificationPhone: e.target.value })}
+                placeholder="+1 (555) 000-0000"
+                className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition"
+              />
+              <p className="text-xs text-[var(--callendra-text-secondary)] opacity-80">SMS for cancel requests and alerts. Falls back to business phone if empty.</p>
+            </div>
+          )}
+          {showOwnerEmailField && (
+            <div className="flex flex-col gap-1">
+              <label className="text-sm text-[var(--callendra-text-secondary)]">Owner Email</label>
+              <input
+                type="email"
+                autoComplete="email"
+                value={ownerEmail}
+                onChange={(e) => setOwnerEmail(e.target.value)}
+                className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition"
+              />
+            </div>
+          )}
+          <div className="flex flex-col gap-1">
+            <label className="text-sm text-[var(--callendra-text-secondary)]">Address</label>
+            <input type="text" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })}
+              placeholder="123 Main St, Dallas TX"
+              className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm text-[var(--callendra-text-secondary)]">Google Maps link (optional)</label>
+            <input
+              type="url"
+              value={form.googleMapsPlaceUrl}
+              onChange={(e) => setForm({ ...form, googleMapsPlaceUrl: e.target.value })}
+              placeholder="https://maps.app.goo.gl/... or https://www.google.com/maps/place/..."
+              className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition font-mono text-xs"
+            />
+            <p className="text-xs text-[var(--callendra-text-secondary)] opacity-80">
+              Open your business in Google Maps → Share → copy link. Used in booking confirmation email/SMS so clients open the correct place, not a generic search.
+            </p>
+          </div>
+          {isOwner && isMainBusiness && (
+            <div className="flex flex-col gap-2 rounded-xl border border-[var(--callendra-border)] bg-[color-mix(in_srgb,var(--callendra-text-primary)_4%,var(--callendra-bg))] p-4">
+              <div>
+                <label className="text-sm font-medium text-[var(--callendra-text-primary)]">Booking URL (brand slug)</label>
+                <p className="text-xs text-[var(--callendra-text-secondary)] mt-1">
+                  Middle part of <span className="font-mono">/book/…/your-location</span>. Lowercase letters, numbers, and hyphens only. Changing it updates every location link for this brand.
+                </p>
+              </div>
+              <input
+                type="text"
+                value={brandSlugInput}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setBrandSlugInput(v);
+                  if (normalizeBrandSlug(v) === normalizeBrandSlug(initialBrandSlug)) {
+                    setConfirmBrandSlug(false);
+                  }
+                }}
+                autoComplete="off"
+                spellCheck={false}
+                className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm font-mono outline-none focus:border-[var(--callendra-accent)] transition"
+              />
+              <p className="text-xs text-[var(--callendra-accent)] font-mono break-all">
+                {hasLocations && mainLocationLinks.length > 0
+                  ? `Example: /book/${normalizeBrandSlug(brandSlugInput) || "…"}/your-location`
+                  : `/book/${normalizeBrandSlug(brandSlugInput) || "…"}`}
+              </p>
+              {normalizeBrandSlug(brandSlugInput) !== normalizeBrandSlug(initialBrandSlug) && (
+                <label className="flex items-start gap-2 cursor-pointer text-sm text-[var(--callendra-text-secondary)]">
+                  <input
+                    type="checkbox"
+                    className="mt-1 rounded border-[var(--callendra-border)]"
+                    checked={confirmBrandSlug}
+                    onChange={(e) => setConfirmBrandSlug(e.target.checked)}
+                  />
+                  <span>
+                    I understand that after saving, old booking links, QR codes, and bookmarks that use the previous URL will no longer work until I share the new ones.
+                  </span>
+                </label>
+              )}
+            </div>
+          )}
+          {(!isMainBusiness || !hasLocations) && (
+            <div className="flex flex-col gap-1">
+              <label className="text-sm text-[var(--callendra-text-secondary)]">AI Agent Phone Number</label>
+              <input type="tel" value={form.retellPhoneNumber} onChange={(e) => setForm({ ...form, retellPhoneNumber: e.target.value })}
+                placeholder="+19453072113"
+                className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition" />
+              <p className="text-xs text-[var(--callendra-text-secondary)] opacity-80">Phone number assigned by Retell AI for this location</p>
+            </div>
+          )}
+        </div>
+
+        <div className="border border-[var(--callendra-border)] rounded-2xl p-5 mb-8">
+          <div className="mb-4">
+            <h2 className="font-semibold">Your booking links</h2>
+            <p className="text-xs text-[var(--callendra-text-secondary)] mt-1">
+              {isMainBusiness && hasLocations && mainLocationLinks.length > 0
+                ? "Share these with your clients"
+                : "Share this link with your clients"}
+            </p>
+          </div>
+          {isMainBusiness && hasLocations && mainLocationLinks.length > 0 ? (
+            <ul className="flex flex-col divide-y divide-white/10">
+              {mainLocationLinks.map((row) => (
+                <li
+                  key={row.id}
+                  className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-4 py-3 first:pt-0 last:pb-0"
+                >
+                  <span className="text-sm text-[var(--callendra-text-primary)]">{row.name}</span>
+                  <a
+                    href={`/en${row.path}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-[var(--callendra-accent)] hover:opacity-80 transition font-mono break-all sm:text-right"
+                  >
+                    {row.path}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <a
+                href={bookingPath ? `/en${bookingPath}` : `/en/book/${slug}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-[var(--callendra-accent)] hover:opacity-80 transition font-mono break-all sm:text-right"
+              >
+                {bookingPath || `/book/${slug}`}
+              </a>
+            </div>
+          )}
+        </div>
+
+        <div className="border border-[var(--callendra-border)] rounded-2xl p-6 flex flex-col gap-4 mb-8">
           <div>
-            <h2 className="font-semibold">Tema de colores</h2>
+            <h2 className="font-semibold">Color theme</h2>
             <p className="text-xs text-[var(--callendra-text-secondary)] opacity-80 mt-1">
-              Aplica a la página de reservas y a la pantalla pública (solo colores, no el panel del dashboard).
+              Applies to the booking page and public display (colors only, not the dashboard panel).
             </p>
           </div>
 
@@ -620,105 +635,133 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        <div className="border border-[var(--callendra-border)] rounded-2xl p-6 flex flex-col gap-4 mb-8">
-          <h2 className="font-semibold">Basic information</h2>
-          <div className="flex flex-col gap-1">
-            <label className="text-sm text-[var(--callendra-text-secondary)]">Business name</label>
-            <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
-              className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-sm text-[var(--callendra-text-secondary)]">Business phone</label>
-            <input type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })}
-              className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition" />
-          </div>
-          {showNotificationPhone && (
-            <div className="flex flex-col gap-1">
-              <label className="text-sm text-[var(--callendra-text-secondary)]">Notification phone (optional)</label>
-              <input
-                type="tel"
-                value={form.notificationPhone}
-                onChange={(e) => setForm({ ...form, notificationPhone: e.target.value })}
-                placeholder="+1 (555) 000-0000"
-                className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition"
-              />
-              <p className="text-xs text-[var(--callendra-text-secondary)] opacity-80">SMS for cancel requests and alerts. Falls back to business phone if empty.</p>
-            </div>
-          )}
-          <div className="flex flex-col gap-1">
-            <label className="text-sm text-[var(--callendra-text-secondary)]">Address</label>
-            <input type="text" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })}
-              placeholder="123 Main St, Dallas TX"
-              className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-sm text-[var(--callendra-text-secondary)]">Google Maps link (optional)</label>
-            <input
-              type="url"
-              value={form.googleMapsPlaceUrl}
-              onChange={(e) => setForm({ ...form, googleMapsPlaceUrl: e.target.value })}
-              placeholder="https://maps.app.goo.gl/... or https://www.google.com/maps/place/..."
-              className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition font-mono text-xs"
-            />
-            <p className="text-xs text-[var(--callendra-text-secondary)] opacity-80">
-              Open your business in Google Maps → Share → copy link. Used in booking confirmation email/SMS so clients open the correct place, not a generic search.
+        {isOwner &&
+          (hideDisplayWalkInForMainWithBranches ? (
+            <p className="mb-8 text-sm leading-relaxed text-[var(--callendra-text-secondary)]">
+              Display and Walk-in links are managed per location. Go to each location&apos;s profile to find their links.
             </p>
-          </div>
-          {isOwner && isMainBusiness && (
-            <div className="flex flex-col gap-2 rounded-xl border border-[var(--callendra-border)] bg-[color-mix(in_srgb,var(--callendra-text-primary)_4%,var(--callendra-bg))] p-4">
-              <div>
-                <label className="text-sm font-medium text-[var(--callendra-text-primary)]">Booking URL (brand slug)</label>
-                <p className="text-xs text-[var(--callendra-text-secondary)] mt-1">
-                  Middle part of <span className="font-mono">/book/…/your-location</span>. Lowercase letters, numbers, and hyphens only. Changing it updates every location link for this brand.
+          ) : (
+            <>
+              <div className="border border-[var(--callendra-border)] rounded-2xl p-6 flex flex-col gap-4 mb-8">
+                <h2 className="font-semibold">Display screen</h2>
+                <p className="text-sm text-[var(--callendra-text-secondary)]">
+                  TV and waiting-room displays use a secret link. Only people with the full URL can open your display.
                 </p>
+                {displayTokenError && (
+                  <p className="text-sm text-amber-400/90">{displayTokenError}</p>
+                )}
+                {!displayToken ? (
+                  <p className="text-sm text-[var(--callendra-text-secondary)]">No token generated yet.</p>
+                ) : (
+                  <>
+                    <div>
+                      <div className="text-xs text-[var(--callendra-text-secondary)] mb-1">Current token (masked)</div>
+                      <div className="font-mono text-sm text-[var(--callendra-text-primary)]">{maskedToken}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-[var(--callendra-text-secondary)] mb-1">Full display URL</div>
+                      <div className="font-mono text-xs break-all text-[var(--callendra-accent)]">{displayUrl}</div>
+                    </div>
+                  </>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={displayTokenLoading}
+                    onClick={handleRegenerateDisplayToken}
+                    className="ui-btn-primary px-4 py-2 rounded-xl text-sm font-medium disabled:opacity-50"
+                  >
+                    {displayTokenLoading ? "Saving…" : displayToken ? "Regenerate token" : "Generate token"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!displayUrl}
+                    onClick={copyDisplayUrl}
+                    className="border border-[var(--callendra-border)] px-4 py-2 rounded-xl text-sm font-medium hover:opacity-90 transition disabled:opacity-40"
+                  >
+                    Copy URL
+                  </button>
+                </div>
               </div>
-              <input
-                type="text"
-                value={brandSlugInput}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  setBrandSlugInput(v);
-                  if (normalizeBrandSlug(v) === normalizeBrandSlug(initialBrandSlug)) {
-                    setConfirmBrandSlug(false);
-                  }
-                }}
-                autoComplete="off"
-                spellCheck={false}
-                className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm font-mono outline-none focus:border-[var(--callendra-accent)] transition"
-              />
-              <p className="text-xs text-[var(--callendra-accent)] font-mono break-all">
-                {hasLocations && mainLocationLinks.length > 0
-                  ? `Example: /book/${normalizeBrandSlug(brandSlugInput) || "…"}/your-location`
-                  : `/book/${normalizeBrandSlug(brandSlugInput) || "…"}`}
-              </p>
-              {normalizeBrandSlug(brandSlugInput) !== normalizeBrandSlug(initialBrandSlug) && (
-                <label className="flex items-start gap-2 cursor-pointer text-sm text-[var(--callendra-text-secondary)]">
-                  <input
-                    type="checkbox"
-                    className="mt-1 rounded border-[var(--callendra-border)]"
-                    checked={confirmBrandSlug}
-                    onChange={(e) => setConfirmBrandSlug(e.target.checked)}
-                  />
-                  <span>
-                    I understand that after saving, old booking links, QR codes, and bookmarks that use the previous URL will no longer work until I share the new ones.
-                  </span>
-                </label>
-              )}
-            </div>
-          )}
-          {(!isMainBusiness || !hasLocations) && (
-            <div className="flex flex-col gap-1">
-              <label className="text-sm text-[var(--callendra-text-secondary)]">AI Agent Phone Number</label>
-              <input type="tel" value={form.retellPhoneNumber} onChange={(e) => setForm({ ...form, retellPhoneNumber: e.target.value })}
-                placeholder="+19453072113"
-                className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition" />
-              <p className="text-xs text-[var(--callendra-text-secondary)] opacity-80">Phone number assigned by Retell AI for this location</p>
-            </div>
-          )}
-          {error && <p className="text-red-400 text-sm">{error}</p>}
-          {saved && <p className="text-[var(--callendra-accent)] text-sm">✓ Saved successfully</p>}
-          <button onClick={handleSave} disabled={loading}
-            className="ui-btn-primary py-3 rounded-xl font-semibold text-sm transition disabled:opacity-50">
+
+              <div className="border border-[var(--callendra-border)] rounded-2xl p-6 flex flex-col gap-4 mb-8">
+                <h2 className="font-semibold">Walk-in (iPad)</h2>
+                <p className="text-sm text-[var(--callendra-text-secondary)]">
+                  Put this URL on an iPad at your entrance so walk-in clients can book without the public web limits. Only
+                  people with the full link can open it (separate secret from the display screen).
+                </p>
+                {walkInTokenError && (
+                  <p className="text-sm text-amber-400/90">{walkInTokenError}</p>
+                )}
+                {!walkInToken ? (
+                  <p className="text-sm text-[var(--callendra-text-secondary)]">No token generated yet.</p>
+                ) : (
+                  <>
+                    <div>
+                      <div className="text-xs text-[var(--callendra-text-secondary)] mb-1">Current token (masked)</div>
+                      <div className="font-mono text-sm text-[var(--callendra-text-primary)]">{maskedWalkInToken}</div>
+                    </div>
+                    {walkInUrlsByLocation.length > 0 ? (
+                      <ul className="flex flex-col gap-4">
+                        {walkInUrlsByLocation.map((row) => (
+                          <li key={row.id}>
+                            <div className="text-xs text-[var(--callendra-text-secondary)] mb-1">{row.name}</div>
+                            <div className="font-mono text-xs break-all text-[var(--callendra-accent)]">{row.url}</div>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : walkInUrl ? (
+                      <div>
+                        <div className="text-xs text-[var(--callendra-text-secondary)] mb-1">Full walk-in URL</div>
+                        <div className="font-mono text-xs break-all text-[var(--callendra-accent)]">{walkInUrl}</div>
+                      </div>
+                    ) : null}
+                  </>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={walkInTokenLoading}
+                    onClick={handleRegenerateWalkInToken}
+                    className="ui-btn-primary px-4 py-2 rounded-xl text-sm font-medium disabled:opacity-50"
+                  >
+                    {walkInTokenLoading ? "Saving…" : walkInToken ? "Regenerate token" : "Generate token"}
+                  </button>
+                  {walkInUrlsByLocation.length > 0 ? (
+                    walkInUrlsByLocation.map((row) => (
+                      <button
+                        key={row.id}
+                        type="button"
+                        onClick={() => copyWalkInUrl(row.url)}
+                        className="border border-[var(--callendra-border)] px-4 py-2 rounded-xl text-sm font-medium hover:opacity-90 transition"
+                      >
+                        Copy — {row.name}
+                      </button>
+                    ))
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={!walkInUrl}
+                      onClick={() => copyWalkInUrl(walkInUrl)}
+                      className="border border-[var(--callendra-border)] px-4 py-2 rounded-xl text-sm font-medium hover:opacity-90 transition disabled:opacity-40"
+                    >
+                      Copy URL
+                    </button>
+                  )}
+                </div>
+              </div>
+            </>
+          ))}
+
+        <div className="mt-10 pt-6 border-t border-[var(--callendra-border)] flex flex-col gap-4 w-full">
+          {error && <p className="text-red-400 text-sm text-center">{error}</p>}
+          {saved && <p className="text-[var(--callendra-accent)] text-sm text-center">✓ Saved successfully</p>}
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={loading}
+            className="ui-btn-primary w-full max-w-md mx-auto py-3.5 rounded-xl font-semibold text-sm transition disabled:opacity-50 shadow-lg"
+          >
             {loading ? "Saving..." : "Save changes"}
           </button>
         </div>

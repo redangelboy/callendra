@@ -40,17 +40,22 @@ export async function GET(req: NextRequest) {
     const mainId = await getMainBusinessIdForOwner(prisma, ownerId);
     const isMainBusiness = mainId != null && business.id === mainId;
     let notificationPhone: string | null = null;
+    let ownerEmail: string | undefined;
     if (ownerIdFromSession) {
       const o = await prisma.owner.findUnique({
         where: { id: ownerIdFromSession },
-        select: { phone: true },
+        select: { phone: true, email: true },
       });
       notificationPhone = o?.phone ?? null;
+      if (ownerIdFromSession === business.ownerId) {
+        ownerEmail = o?.email;
+      }
     }
     return NextResponse.json({
       ...business,
       isMainBusiness,
       ...(ownerIdFromSession ? { notificationPhone } : {}),
+      ...(ownerEmail !== undefined ? { ownerEmail } : {}),
     });
   } catch (error) {
     return NextResponse.json({ error: "Server error" }, { status: 500 });
@@ -128,7 +133,8 @@ export async function PATCH(req: NextRequest) {
     const parsed = JSON.parse(session);
     const { businessId, ownerId } = parsed as { businessId: string; ownerId?: string };
     const body = await req.json();
-    const { name, phone, address, logo, retellPhoneNumber, notificationPhone, themePreset, googleMapsPlaceUrl } = body;
+    const { name, phone, address, logo, retellPhoneNumber, notificationPhone, themePreset, googleMapsPlaceUrl, ownerEmail } =
+      body;
 
     const themeUpdate =
       themePreset !== undefined && isValidThemeId(String(themePreset))
@@ -164,6 +170,39 @@ export async function PATCH(req: NextRequest) {
     if (themeUpdate !== undefined) data.themePreset = themeUpdate;
 
     let didRenameBrand = false;
+    let didUpdateOwnerEmail = false;
+
+    if ("ownerEmail" in body && ownerId) {
+      const row = await prisma.business.findUnique({
+        where: { id: businessId },
+        select: { ownerId: true, locationSlug: true },
+      });
+      if (!row || row.ownerId !== ownerId) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+      }
+      const ls = (row.locationSlug ?? "").trim();
+      if (ls !== "" && ls !== "main") {
+        return NextResponse.json(
+          { error: "Owner email can only be updated from the main business profile" },
+          { status: 403 }
+        );
+      }
+      const trimmed = typeof ownerEmail === "string" ? ownerEmail.trim() : "";
+      if (!trimmed) {
+        return NextResponse.json({ error: "Owner email cannot be empty" }, { status: 400 });
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+        return NextResponse.json({ error: "Invalid email address" }, { status: 400 });
+      }
+      const taken = await prisma.owner.findFirst({
+        where: { email: trimmed, NOT: { id: ownerId } },
+      });
+      if (taken) {
+        return NextResponse.json({ error: "That email is already in use" }, { status: 400 });
+      }
+      await prisma.owner.update({ where: { id: ownerId }, data: { email: trimmed } });
+      didUpdateOwnerEmail = true;
+    }
     if ("brandSlug" in body && body.brandSlug !== undefined && body.brandSlug !== null) {
       if (!ownerId) {
         return NextResponse.json({ error: "Only the business owner can change the booking URL" }, { status: 403 });
@@ -199,7 +238,7 @@ export async function PATCH(req: NextRequest) {
     }
 
     const hasDataUpdates = Object.keys(data).length > 0;
-    if (!hasDataUpdates && !didRenameBrand) {
+    if (!hasDataUpdates && !didRenameBrand && !didUpdateOwnerEmail) {
       return NextResponse.json({ error: "No fields to update" }, { status: 400 });
     }
 
