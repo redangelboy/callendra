@@ -4,7 +4,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { resolveBusinessForBooking } from "@/lib/booking-business";
 import { loadLocationCatalog } from "@/lib/location-catalog";
 import { utcFromYmdAndTime } from "@/lib/business-timezone";
-import { findStaffOverlappingAppointment } from "@/lib/appointment-overlap";
+import { findStaffIntervalConflict } from "@/lib/appointment-overlap";
 import { walkInTokensMatch } from "@/lib/walk-in-token";
 
 // Rate limiting en memoria: 3 reservaciones por día por IP
@@ -175,12 +175,13 @@ export async function POST(req: NextRequest) {
     const serviceDuration = service?.duration || 30;
     const appointmentEnd = new Date(appointmentDate.getTime() + serviceDuration * 60000);
 
-    const overlap = await findStaffOverlappingAppointment(prisma, {
+    const conflict = await findStaffIntervalConflict(prisma, {
       staffId,
+      businessId: business.id,
       start: appointmentDate,
       end: appointmentEnd,
     });
-    if (overlap) {
+    if (conflict) {
       return NextResponse.json(
         { error: "This time slot is no longer available. Please choose a different time." },
         { status: 409 }

@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { notifyCancelRequest, notifyClientBookingConfirmed } from "@/lib/notify";
 import { buildPublicBookingAbsUrl } from "@/lib/booking-public-url";
-import { utcFromYmdAndTime } from "@/lib/business-timezone";
+import { businessDayUtcRange, utcFromYmdAndTime } from "@/lib/business-timezone";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { effectiveServicePrice } from "@/lib/location-catalog";
-import { findStaffOverlappingAppointment } from "@/lib/appointment-overlap";
+import { findStaffIntervalConflict } from "@/lib/appointment-overlap";
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL!
@@ -18,13 +18,25 @@ export async function GET(req: NextRequest) {
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const { businessId } = JSON.parse(session);
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const endOfDay = new Date();
-    endOfDay.setHours(23, 59, 59, 999);
+    const { searchParams } = new URL(req.url);
+    const dateParam = searchParams.get("date")?.trim();
+    let rangeStart: Date;
+    let rangeEnd: Date;
+    if (dateParam && /^(\d{4})-(\d{2})-(\d{2})$/.test(dateParam)) {
+      const r = businessDayUtcRange(dateParam);
+      rangeStart = r.start;
+      rangeEnd = r.end;
+    } else {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const endOfDay = new Date();
+      endOfDay.setHours(23, 59, 59, 999);
+      rangeStart = today;
+      rangeEnd = endOfDay;
+    }
 
     const appointments = await prisma.appointment.findMany({
-      where: { businessId, date: { gte: today, lte: endOfDay }, status: { not: "cancelled" } },
+      where: { businessId, date: { gte: rangeStart, lte: rangeEnd }, status: { not: "cancelled" } },
       include: { staff: true, service: true },
       orderBy: { date: "asc" }
     });
@@ -83,15 +95,21 @@ export async function PATCH(req: NextRequest) {
       const svc = await prisma.service.findUnique({ where: { id: mergedServiceId } });
       const durMin = svc?.duration ?? 30;
       const mergedEnd = new Date(mergedStart.getTime() + durMin * 60_000);
-      const overlap = await findStaffOverlappingAppointment(prisma, {
+      const conflict = await findStaffIntervalConflict(prisma, {
         staffId: mergedStaffId,
+        businessId: existing.businessId,
         start: mergedStart,
         end: mergedEnd,
         excludeAppointmentId: id,
       });
-      if (overlap) {
+      if (conflict) {
         return NextResponse.json(
-          { error: "That time overlaps another appointment for this staff member." },
+          {
+            error:
+              conflict.kind === "break"
+                ? "That time overlaps a staff break for this staff member."
+                : "That time overlaps another appointment for this staff member.",
+          },
           { status: 409 }
         );
       }
@@ -160,14 +178,20 @@ export async function POST(req: NextRequest) {
     const durMin = service?.duration ?? 30;
     const aptEnd = new Date(aptDate.getTime() + durMin * 60_000);
 
-    const overlap = await findStaffOverlappingAppointment(prisma, {
+    const conflict = await findStaffIntervalConflict(prisma, {
       staffId,
+      businessId,
       start: aptDate,
       end: aptEnd,
     });
-    if (overlap) {
+    if (conflict) {
       return NextResponse.json(
-        { error: "That time overlaps another appointment for this staff member. Choose a different time or staff." },
+        {
+          error:
+            conflict.kind === "break"
+              ? "That time overlaps a staff break. Choose a different time or staff."
+              : "That time overlaps another appointment for this staff member. Choose a different time or staff.",
+        },
         { status: 409 }
       );
     }

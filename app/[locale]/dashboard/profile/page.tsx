@@ -52,6 +52,14 @@ export default function ProfilePage() {
   const [confirmBrandSlug, setConfirmBrandSlug] = useState(false);
   const [locationSlug, setLocationSlug] = useState("");
   const [ownerEmail, setOwnerEmail] = useState("");
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  });
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordError, setPasswordError] = useState("");
+  const [passwordSaved, setPasswordSaved] = useState(false);
 
   const showOwnerEmailField = useMemo(() => {
     if (!isOwner) return false;
@@ -350,6 +358,45 @@ export default function ProfilePage() {
       setError(err instanceof Error ? err.message : "Error");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleUpdatePassword = async () => {
+    setPasswordError("");
+    setPasswordSaved(false);
+
+    if (!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword) {
+      setPasswordError("All password fields are required");
+      return;
+    }
+    if (passwordForm.newPassword.length < 8) {
+      setPasswordError("New password must be at least 8 characters");
+      return;
+    }
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordError("New passwords do not match");
+      return;
+    }
+
+    setPasswordLoading(true);
+    try {
+      const res = await fetch("/api/auth/change-password", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          currentPassword: passwordForm.currentPassword,
+          newPassword: passwordForm.newPassword,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not update password");
+      setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+      setPasswordSaved(true);
+      setTimeout(() => setPasswordSaved(false), 3000);
+    } catch (err: unknown) {
+      setPasswordError(err instanceof Error ? err.message : "Error");
+    } finally {
+      setPasswordLoading(false);
     }
   };
 
@@ -765,6 +812,52 @@ export default function ProfilePage() {
             {loading ? "Saving..." : "Save changes"}
           </button>
         </div>
+
+        {isOwner && isMainBusiness && (
+          <div className="border border-[var(--callendra-border)] rounded-2xl p-6 flex flex-col gap-4 mt-8">
+            <h2 className="font-semibold">Change Password</h2>
+            <div className="flex flex-col gap-1">
+              <label className="text-sm text-[var(--callendra-text-secondary)]">Current password</label>
+              <input
+                type="password"
+                autoComplete="current-password"
+                value={passwordForm.currentPassword}
+                onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
+                className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-sm text-[var(--callendra-text-secondary)]">New password</label>
+              <input
+                type="password"
+                autoComplete="new-password"
+                value={passwordForm.newPassword}
+                onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-sm text-[var(--callendra-text-secondary)]">Confirm new password</label>
+              <input
+                type="password"
+                autoComplete="new-password"
+                value={passwordForm.confirmPassword}
+                onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition"
+              />
+            </div>
+            {passwordError && <p className="text-red-400 text-sm">{passwordError}</p>}
+            {passwordSaved && <p className="text-[var(--callendra-accent)] text-sm">✓ Password updated</p>}
+            <button
+              type="button"
+              onClick={handleUpdatePassword}
+              disabled={passwordLoading}
+              className="ui-btn-primary w-full sm:w-auto px-5 py-3 rounded-xl font-semibold text-sm transition disabled:opacity-50"
+            >
+              {passwordLoading ? "Updating..." : "Update Password"}
+            </button>
+          </div>
+        )}
       </div>
     </main>
   );

@@ -18,6 +18,10 @@ function gridColsStyle(columnCount: number): CSSProperties {
   return { gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))` };
 }
 
+type ColumnItem =
+  | { kind: "appointment"; apt: any }
+  | { kind: "break"; br: any };
+
 function StaffColumn({
   s,
   now,
@@ -27,45 +31,106 @@ function StaffColumn({
   now: Date;
   formatTime: (date: string) => string;
 }) {
+  const items: ColumnItem[] = s.columnItems ?? [];
+  const apptCount = items.filter((i) => i.kind === "appointment").length;
+  const breakCount = items.filter((i) => i.kind === "break").length;
+  const summary =
+    breakCount > 0
+      ? `${apptCount} appt${apptCount !== 1 ? "s" : ""} · ${breakCount} break${breakCount !== 1 ? "s" : ""}`
+      : `${apptCount} appt${apptCount !== 1 ? "s" : ""}`;
+
+  const itemStartMs = (item: ColumnItem) =>
+    item.kind === "appointment" ? new Date(item.apt.date).getTime() : new Date(item.br.startAt).getTime();
+
   return (
     <section className="flex min-h-0 h-full min-w-0 flex-col overflow-hidden rounded-xl sm:rounded-2xl border border-[var(--callendra-border)] bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))]">
       <div className="shrink-0 flex items-center gap-2.5 px-2 py-2.5 sm:px-3 sm:py-3 min-w-0 border-b border-[var(--callendra-border)]/60">
         <StaffAvatar name={s.name} photo={s.photo} size="display" />
         <div className="min-w-0 flex-1">
           <div className="font-bold text-sm sm:text-base md:text-lg truncate">{s.name}</div>
-          <div className="text-[10px] sm:text-xs md:text-sm text-[var(--callendra-text-secondary)]">
-            {s.appointments.length} appt{s.appointments.length !== 1 ? "s" : ""}
+          <div className="text-[10px] sm:text-xs md:text-sm text-[var(--callendra-text-secondary)] truncate">
+            {summary}
           </div>
         </div>
       </div>
       <div
         className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-1.5 py-1.5 sm:px-2 sm:py-2 [scrollbar-width:thin] [scrollbar-color:var(--callendra-border)_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[color-mix(in_srgb,var(--callendra-text-primary)_35%,transparent)]"
       >
-        {s.appointments.length === 0 ? (
+        {items.length === 0 ? (
           <div className="flex h-full min-h-[4rem] flex-col items-center justify-center gap-1 py-4 text-[var(--callendra-text-secondary)]">
             <div className="text-2xl opacity-80" aria-hidden>
               📅
             </div>
-            <div className="text-xs sm:text-sm">No appointments</div>
+            <div className="text-xs sm:text-sm">No upcoming today</div>
           </div>
         ) : (
           <ul className="flex flex-col gap-1.5 sm:gap-2">
-            {s.appointments.map((apt: any) => {
-              const aptTime = new Date(apt.date);
-              const duration = apt.service?.duration || 30;
-              const aptEnd = new Date(aptTime.getTime() + duration * 60 * 1000);
-              const isInProgress = aptTime <= now && aptEnd > now;
-              const isNext =
-                !isInProgress &&
-                s.appointments.findIndex((a: any) => new Date(a.date) >= now) === s.appointments.indexOf(apt);
+            {items.map((item) => {
+              if (item.kind === "appointment") {
+                const apt = item.apt;
+                const aptTime = new Date(apt.date);
+                const duration = apt.service?.duration || 30;
+                const aptEnd = new Date(aptTime.getTime() + duration * 60 * 1000);
+                const isInProgress = aptTime <= now && aptEnd > now;
+                const nextIdx = items.findIndex((i) => itemStartMs(i) >= now.getTime());
+                const isNext = !isInProgress && nextIdx === items.indexOf(item);
+                return (
+                  <li key={apt.id}>
+                    <div
+                      className={`rounded-lg px-2 py-2 sm:px-2.5 sm:py-2 border transition min-w-0 ${
+                        isInProgress
+                          ? "bg-green-500/20 border-green-500/50"
+                          : isNext
+                            ? "bg-green-500/10 border-green-500/30"
+                            : "bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border-[var(--callendra-border)]"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2 min-w-0">
+                        <div className="min-w-0 flex-1">
+                          <div
+                            className={`text-xs sm:text-sm md:text-base font-semibold leading-snug break-words line-clamp-2 ${
+                              isNext ? "text-[var(--callendra-accent)]" : "text-[var(--callendra-text-primary)]"
+                            }`}
+                          >
+                            {apt.clientName}
+                          </div>
+                          <div className="text-[10px] sm:text-xs text-[var(--callendra-text-secondary)] break-words line-clamp-2 mt-0.5">
+                            {apt.service?.name}
+                          </div>
+                        </div>
+                        <div className="shrink-0 flex flex-col items-end gap-0.5 text-right">
+                          <div
+                            className={`font-mono font-bold text-sm sm:text-base md:text-lg tabular-nums leading-none ${
+                              isNext || isInProgress ? "text-[var(--callendra-accent)]" : "text-[var(--callendra-text-primary)]"
+                            }`}
+                          >
+                            {formatTime(apt.date)}
+                          </div>
+                          {isNext && (
+                            <span className="text-[9px] sm:text-[10px] uppercase tracking-wide text-[var(--callendra-success)] font-semibold">
+                              Next
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </li>
+                );
+              }
+              const br = item.br;
+              const brStart = new Date(br.startAt);
+              const brEnd = new Date(brStart.getTime() + br.duration * 60 * 1000);
+              const isInProgress = brStart <= now && brEnd > now;
+              const nextIdx = items.findIndex((i) => itemStartMs(i) >= now.getTime());
+              const isNext = !isInProgress && nextIdx === items.indexOf(item);
               return (
-                <li key={apt.id}>
+                <li key={`break-${br.id}`}>
                   <div
-                    className={`rounded-lg px-2 py-2 sm:px-2.5 sm:py-2 border transition min-w-0 ${
+                    className={`rounded-lg px-2 py-2 sm:px-2.5 sm:py-2 border border-dashed transition min-w-0 ${
                       isInProgress
-                        ? "bg-green-500/20 border-green-500/50"
+                        ? "bg-amber-500/15 border-amber-500/40"
                         : isNext
-                          ? "bg-green-500/10 border-green-500/30"
+                          ? "bg-amber-500/10 border-amber-500/30"
                           : "bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border-[var(--callendra-border)]"
                     }`}
                   >
@@ -76,19 +141,19 @@ function StaffColumn({
                             isNext ? "text-[var(--callendra-accent)]" : "text-[var(--callendra-text-primary)]"
                           }`}
                         >
-                          {apt.clientName}
+                          {br.label || "Break"}
                         </div>
                         <div className="text-[10px] sm:text-xs text-[var(--callendra-text-secondary)] break-words line-clamp-2 mt-0.5">
-                          {apt.service?.name}
+                          {br.duration} min
                         </div>
                       </div>
                       <div className="shrink-0 flex flex-col items-end gap-0.5 text-right">
                         <div
                           className={`font-mono font-bold text-sm sm:text-base md:text-lg tabular-nums leading-none ${
-                            isNext || isInProgress ? "text-[var(--callendra-accent)]" : "text-[var(--callendra-text-primary)]"
+                            isNext || isInProgress ? "text-[var(--callendra-accent)]" : "text-[var(--callendra-text-secondary)]"
                           }`}
                         >
-                          {formatTime(apt.date)}
+                          {formatTime(br.startAt)}
                         </div>
                         {isNext && (
                           <span className="text-[9px] sm:text-[10px] uppercase tracking-wide text-[var(--callendra-success)] font-semibold">
@@ -142,6 +207,7 @@ function DisplayPageInner() {
 
   const [business, setBusiness] = useState<any>(null);
   const [appointments, setAppointments] = useState<any[]>([]);
+  const [staffBreaks, setStaffBreaks] = useState<any[]>([]);
   const [now, setNow] = useState(new Date());
   const [access, setAccess] = useState<"loading" | "ok" | "denied">("loading");
 
@@ -152,16 +218,20 @@ function DisplayPageInner() {
     if (res.status === 403) {
       setAccess("denied");
       setBusiness(null);
+      setStaffBreaks([]);
       return;
     }
     if (!res.ok) {
       setAccess("denied");
       setBusiness(null);
+      setStaffBreaks([]);
       return;
     }
     const data = await res.json();
     if (data.business) setBusiness(data.business);
     if (Array.isArray(data.appointments)) setAppointments(data.appointments);
+    if (Array.isArray(data.staffBreaks)) setStaffBreaks(data.staffBreaks);
+    else setStaffBreaks([]);
     setAccess("ok");
   }, [slug, token]);
 
@@ -188,9 +258,8 @@ function DisplayPageInner() {
     d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
   const staff = business?.staff || [];
-  const byStaff = staff.map((s: any) => ({
-    ...s,
-    appointments: appointments
+  const byStaff = staff.map((s: any) => {
+    const appts = appointments
       .filter((a: any) => {
         if (a.staffId !== s.id) return false;
         const start = new Date(a.date);
@@ -198,8 +267,22 @@ function DisplayPageInner() {
         const end = new Date(start.getTime() + duration * 60 * 1000);
         return end > now;
       })
-      .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime()),
-  }));
+      .map((apt: any) => ({ kind: "appointment" as const, apt }));
+    const breaks = staffBreaks
+      .filter((b: any) => {
+        if (b.staffId !== s.id) return false;
+        const start = new Date(b.startAt);
+        const end = new Date(start.getTime() + b.duration * 60 * 1000);
+        return end > now;
+      })
+      .map((br: any) => ({ kind: "break" as const, br }));
+    const columnItems = [...appts, ...breaks].sort((a, b) => {
+      const ta = a.kind === "appointment" ? new Date(a.apt.date).getTime() : new Date(a.br.startAt).getTime();
+      const tb = b.kind === "appointment" ? new Date(b.apt.date).getTime() : new Date(b.br.startAt).getTime();
+      return ta - tb;
+    });
+    return { ...s, columnItems };
+  });
 
   if (access === "loading") {
     return (
@@ -267,7 +350,8 @@ function DisplayPageInner() {
             {formatClock(now)}
           </div>
           <div className="text-[var(--callendra-text-secondary)] text-[10px] sm:text-xs whitespace-nowrap">
-            {appointments.length} today
+            {appointments.length} appt{appointments.length !== 1 ? "s" : ""}
+            {staffBreaks.length ? ` · ${staffBreaks.length} break${staffBreaks.length !== 1 ? "s" : ""}` : ""} today
           </div>
         </div>
       </header>

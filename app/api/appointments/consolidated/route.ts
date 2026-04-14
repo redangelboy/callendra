@@ -3,6 +3,7 @@ import { Prisma, PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { getMainBusinessIdForOwner } from "@/lib/main-business";
 import { effectiveServicePrice } from "@/lib/location-catalog";
+import { businessDayUtcRange } from "@/lib/business-timezone";
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL!,
@@ -87,11 +88,16 @@ export async function GET(req: NextRequest) {
     const rangePreset = searchParams.get("range");
     const fromParam = searchParams.get("from");
     const toParam = searchParams.get("to");
+    const dateOverride = searchParams.get("date")?.trim();
 
     let from: Date;
     let rangeEnd: Date;
 
-    if (rangePreset === "today") {
+    if (dateOverride && /^(\d{4})-(\d{2})-(\d{2})$/.test(dateOverride)) {
+      const r = businessDayUtcRange(dateOverride);
+      from = r.start;
+      rangeEnd = r.end;
+    } else if (rangePreset === "today") {
       from = startOfDay(now);
       rangeEnd = endOfDay(now);
     } else {

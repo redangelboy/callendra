@@ -38,6 +38,7 @@ model Business {
   serviceLocations  ServiceLocation[] @relation("ServiceLocationLocation")
   owner             Owner             @relation(fields: [ownerId], references: [id])
   staffUsers        StaffUser[]
+  staffBreaks       StaffBreak[]
 
   @@index([parentSlug])
 }
@@ -56,6 +57,23 @@ model Staff {
   appointments     Appointment[]
   schedules        Schedule[]
   staffUsers        StaffUser[]
+  staffBreaks       StaffBreak[]
+}
+
+model StaffBreak {
+  id         String   @id @default(cuid())
+  staffId    String
+  staff      Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  date       DateTime // calendar day stored as UTC midnight (YYYY-MM-DD)
+  startTime  String // "HH:mm"
+  duration   Int // minutes
+  label      String   @default("Break")
+  createdAt  DateTime @default(now())
+
+  @@index([businessId, date])
+  @@index([staffId, date])
 }
 
 model Service {

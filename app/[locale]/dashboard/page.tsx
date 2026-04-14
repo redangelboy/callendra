@@ -1,9 +1,34 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
+import { DateTime } from "luxon";
 import { bookingPathForBusiness, walkInPathForBusiness } from "@/lib/booking-path";
 import { isMainBusinessFromPayload } from "@/lib/main-business";
+import { BUSINESS_TIMEZONE } from "@/lib/business-timezone";
 import { DashboardNewAppointmentModal } from "@/components/dashboard-new-appointment-modal";
+
+const TIME_OPTIONS_15 = (() => {
+  const out: string[] = [];
+  for (let m = 0; m < 24 * 60; m += 15) {
+    const h = Math.floor(m / 60);
+    const min = m % 60;
+    out.push(`${h.toString().padStart(2, "0")}:${min.toString().padStart(2, "0")}`);
+  }
+  return out;
+})();
+
+function breakStartMillis(ymd: string, startTime: string): number {
+  const [y, mo, d] = ymd.split("-").map(Number);
+  const [h, min] = startTime.split(":").map(Number);
+  return DateTime.fromObject(
+    { year: y, month: mo, day: d, hour: h, minute: min },
+    { zone: BUSINESS_TIMEZONE }
+  ).toMillis();
+}
+
+type ScheduleRow =
+  | { kind: "appointment"; apt: any }
+  | { kind: "break"; br: any; businessYmd: string };
 
 export default function DashboardPage() {
   const routeParams = useParams();
@@ -36,6 +61,22 @@ export default function DashboardPage() {
   const [cancelReason, setCancelReason] = useState("");
   const [cancelRequests, setCancelRequests] = useState<any[]>([]);
   const [locationFilter, setLocationFilter] = useState<string>("all");
+  const [scheduleDate, setScheduleDate] = useState(() =>
+    DateTime.now().setZone(BUSINESS_TIMEZONE).toFormat("yyyy-LL-dd")
+  );
+  const [staffBreaks, setStaffBreaks] = useState<any[]>([]);
+  const [showBreakModal, setShowBreakModal] = useState(false);
+  const [breakSaving, setBreakSaving] = useState(false);
+  const [breakError, setBreakError] = useState("");
+  const [breakForm, setBreakForm] = useState({
+    staffId: "",
+    breakBusinessId: "",
+    date: "",
+    startTime: "12:00",
+    durationPreset: "30",
+    customMinutes: "30",
+    label: "Break",
+  });
 
   /** Prefer server `isMainBusiness` (matches canonical main row even when locationSlug was set to "main"). */
   function isMainBusinessPayload(biz: any) {
@@ -91,13 +132,16 @@ export default function DashboardPage() {
     const accountHasMultipleBusinessRows = locList.length > 1;
     const main = biz ? isMainBusinessFromPayload(biz) : false;
 
+    let loadedApts: any[] = [];
+
     if (accountHasMultipleBusinessRows && main) {
       const consParams = new URLSearchParams();
-      consParams.set("range", "today");
+      consParams.set("date", scheduleDate);
       if (locationFilter !== "all") consParams.set("locationId", locationFilter);
       const cons = await fetch(`/api/appointments/consolidated?${consParams.toString()}`);
       const c = await cons.json();
       if (cons.ok && Array.isArray(c.appointments)) {
+        loadedApts = c.appointments;
         setAppointments(c.appointments);
         setStats({ total: c.total ?? 0, thisWeek: c.thisWeek ?? 0 });
       } else {
@@ -105,22 +149,47 @@ export default function DashboardPage() {
         setStats({ total: 0, thisWeek: 0 });
       }
     } else {
-      const aptsRes = await fetch("/api/appointments");
+      const aptsRes = await fetch(`/api/appointments?date=${encodeURIComponent(scheduleDate)}`);
       const staffRes = await fetch("/api/staff");
       const staffData = await staffRes.json();
       if (staffData.staff) setStaffList(staffData.staff);
       else if (Array.isArray(staffData)) setStaffList(staffData);
       const aptsData = await aptsRes.json();
       if (aptsData.appointments) {
+        loadedApts = aptsData.appointments;
         setAppointments(aptsData.appointments);
         setStats({ total: aptsData.total, thisWeek: aptsData.thisWeek });
       }
     }
+
+    let nextBreaks: any[] = [];
+    if (accountHasMultipleBusinessRows && main) {
+      const breakBusinessIds: string[] =
+        locationFilter !== "all"
+          ? [locationFilter]
+          : locList.map((l: any) => l.id).filter(Boolean);
+      for (const bid of breakBusinessIds) {
+        const rb = await fetch(
+          `/api/staff-breaks?businessId=${encodeURIComponent(bid)}&date=${encodeURIComponent(scheduleDate)}`
+        );
+        const j = await rb.json();
+        if (Array.isArray(j.breaks)) {
+          nextBreaks = nextBreaks.concat(j.breaks.map((b: any) => ({ ...b, businessId: bid })));
+        }
+      }
+    } else if (biz?.id) {
+      const rb = await fetch(
+        `/api/staff-breaks?businessId=${encodeURIComponent(biz.id)}&date=${encodeURIComponent(scheduleDate)}`
+      );
+      const j = await rb.json();
+      if (Array.isArray(j.breaks)) nextBreaks = j.breaks.map((b: any) => ({ ...b, businessId: biz.id }));
+    }
+    setStaffBreaks(nextBreaks);
   };
 
   useEffect(() => {
     fetchData();
-  }, [locationFilter]);
+  }, [locationFilter, scheduleDate]);
 
   useEffect(() => {
     const onDocMouseDown = (e: MouseEvent) => {
@@ -205,6 +274,16 @@ export default function DashboardPage() {
   const formatTime = (date: string) => {
     return new Date(date).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
   };
+
+  const formatBreakRowTime = (businessYmd: string, startTime: string) =>
+    new Date(breakStartMillis(businessYmd, startTime)).toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+  const branchLocationsForBreaks = locations.filter(
+    (loc: any) => loc.locationSlug && loc.locationSlug !== "" && loc.locationSlug !== "main"
+  );
 
   const bookingHref = bookingPath ? `/en${bookingPath}` : `/en/book/${session?.slug ?? ""}`;
   const isMain = isMainBusinessFromPayload(business);
@@ -293,6 +372,99 @@ export default function DashboardPage() {
   ]);
 
   const isStaffUser = session?.userType === "staff";
+  const canManageStaffBreaks = !!(isOwner || (isStaffUser && userRole === "ADMIN"));
+  const chicagoTodayYmd = DateTime.now().setZone(BUSINESS_TIMEZONE).toFormat("yyyy-LL-dd");
+  const scheduleHeading =
+    scheduleDate === chicagoTodayYmd ? "Today's schedule" : `Schedule — ${scheduleDate}`;
+
+  const scheduleRows: ScheduleRow[] = [
+    ...appointments.map((apt) => ({ kind: "appointment" as const, apt })),
+    ...staffBreaks.map((br) => ({ kind: "break" as const, br, businessYmd: scheduleDate })),
+  ];
+  scheduleRows.sort((a, b) => {
+    const ta =
+      a.kind === "appointment"
+        ? new Date(a.apt.date).getTime()
+        : breakStartMillis(a.businessYmd, a.br.startTime);
+    const tb =
+      b.kind === "appointment"
+        ? new Date(b.apt.date).getTime()
+        : breakStartMillis(b.businessYmd, b.br.startTime);
+    return ta - tb;
+  });
+
+  const openBreakModal = () => {
+    setBreakError("");
+    setShowBreakModal(true);
+    let breakBiz = session?.businessId ?? "";
+    if (accountHasMultipleBusinessRows && isMain) {
+      if (locationFilter !== "all") {
+        breakBiz = locationFilter;
+      } else {
+        breakBiz = branchLocationsForBreaks[0]?.id ?? breakBiz;
+      }
+    }
+    setBreakForm({
+      staffId: staffList[0]?.id ?? "",
+      breakBusinessId: breakBiz,
+      date: scheduleDate,
+      startTime: "12:00",
+      durationPreset: "30",
+      customMinutes: "30",
+      label: "Break",
+    });
+  };
+
+  const saveBreak = async () => {
+    const targetBiz = breakForm.breakBusinessId || session?.businessId;
+    if (!breakForm.staffId || !targetBiz) {
+      setBreakError("Select a staff member and location");
+      return;
+    }
+    const durationMin =
+      breakForm.durationPreset === "custom"
+        ? Math.max(1, parseInt(breakForm.customMinutes, 10) || 0)
+        : parseInt(breakForm.durationPreset, 10);
+    if (!Number.isFinite(durationMin) || durationMin <= 0) {
+      setBreakError("Invalid duration");
+      return;
+    }
+    setBreakSaving(true);
+    setBreakError("");
+    try {
+      const res = await fetch("/api/staff-breaks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          staffId: breakForm.staffId,
+          businessId: targetBiz,
+          date: breakForm.date,
+          startTime: breakForm.startTime,
+          duration: durationMin,
+          label: breakForm.label.trim() || "Break",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not save break");
+      setShowBreakModal(false);
+      fetchData();
+    } catch (e: unknown) {
+      setBreakError(e instanceof Error ? e.message : "Error");
+    } finally {
+      setBreakSaving(false);
+    }
+  };
+
+  const deleteStaffBreak = async (id: string) => {
+    if (!confirm("Remove this break?")) return;
+    const res = await fetch(`/api/staff-breaks/${encodeURIComponent(id)}`, { method: "DELETE" });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      alert(typeof data.error === "string" ? data.error : "Could not remove break");
+      return;
+    }
+    fetchData();
+  };
 
   const staffAllowedLabels = [
     "Schedule",
@@ -382,10 +554,18 @@ export default function DashboardPage() {
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
           {[
-            { label: "Today's appointments", value: appointments.length, icon: "📅" },
+            {
+              label: scheduleDate === chicagoTodayYmd ? "Today's appointments" : "Appointments (day)",
+              value: appointments.length,
+              icon: "📅",
+            },
             { label: "This week", value: stats.thisWeek, icon: "📊" },
             { label: "Total appointments", value: stats.total, icon: "👥" },
-            { label: "Revenue today", value: `$${revenueToday.toFixed(0)}`, icon: "💰" },
+            {
+              label: scheduleDate === chicagoTodayYmd ? "Revenue today" : "Revenue (day)",
+              value: `$${revenueToday.toFixed(0)}`,
+              icon: "💰",
+            },
           ].map((stat) => (
             <div key={stat.label} className="border border-[var(--callendra-border)] rounded-2xl p-5">
               <div className="text-2xl mb-2">{stat.icon}</div>
@@ -418,72 +598,164 @@ export default function DashboardPage() {
 
         {accountHasMultipleBusinessRows && isMain ? (
           <div className="mb-10">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold">Today&apos;s appointments</h2>
-              <div className="flex items-center gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center mb-4">
+              <h2 className="text-lg font-semibold">{scheduleHeading}</h2>
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  type="date"
+                  value={scheduleDate}
+                  onChange={(e) => setScheduleDate(e.target.value)}
+                  className="bg-[var(--callendra-bg)] border border-[var(--callendra-border)] rounded-lg px-3 py-2 text-sm text-[var(--callendra-text-primary)] outline-none"
+                />
+                {canManageStaffBreaks && (
+                  <button
+                    type="button"
+                    onClick={openBreakModal}
+                    className="text-sm border border-[var(--callendra-border)] px-4 py-2 rounded-full hover:bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] transition"
+                  >
+                    + Add break
+                  </button>
+                )}
                 <select
                   value={locationFilter}
-                  onChange={e => setLocationFilter(e.target.value)}
+                  onChange={(e) => setLocationFilter(e.target.value)}
                   className="bg-[var(--callendra-bg)] border border-[var(--callendra-border)] rounded-lg px-3 py-2 text-sm text-[var(--callendra-text-primary)] outline-none"
                 >
                   <option value="all">All locations</option>
-                  {locations.filter((loc: any) => loc.locationSlug && loc.locationSlug !== "" && loc.locationSlug !== "main").map((loc: any) => (
-                    <option key={loc.id} value={loc.id}>{loc.name}</option>
-                  ))}
+                  {locations
+                    .filter(
+                      (loc: any) =>
+                        loc.locationSlug && loc.locationSlug !== "" && loc.locationSlug !== "main"
+                    )
+                    .map((loc: any) => (
+                      <option key={loc.id} value={loc.id}>
+                        {loc.name}
+                      </option>
+                    ))}
                 </select>
-                <a href={reportsHref} className="text-sm text-[var(--callendra-text-secondary)] hover:opacity-90 transition border border-[var(--callendra-border)] px-4 py-2 rounded-full">
+                <a
+                  href={reportsHref}
+                  className="text-sm text-[var(--callendra-text-secondary)] hover:opacity-90 transition border border-[var(--callendra-border)] px-4 py-2 rounded-full"
+                >
                   Reports →
                 </a>
               </div>
             </div>
-            {appointments.length === 0 ? (
+            {scheduleRows.length === 0 ? (
               <div className="border border-[var(--callendra-border)] rounded-2xl p-8 text-center">
                 <div className="text-4xl mb-3">📅</div>
-                <p className="text-[var(--callendra-text-secondary)] text-sm">No appointments today</p>
+                <p className="text-[var(--callendra-text-secondary)] text-sm">No appointments or breaks for this day</p>
               </div>
             ) : (
               <div className="flex flex-col gap-3">
-                {appointments.map((apt: any) => (
-                  <div key={apt.id} className="border border-[var(--callendra-border)] rounded-2xl px-6 py-4 flex justify-between items-center hover:border-[var(--callendra-border)] transition">
-                    <div className="flex items-center gap-4">
-                      <div className={`text-2xl font-mono font-bold w-16 ${apt.status === "cancel_requested" ? "text-yellow-400" : "text-[var(--callendra-accent)]"}`}>
-                        {formatTime(apt.date)}
+                {scheduleRows.map((row) =>
+                  row.kind === "appointment" ? (
+                    <div
+                      key={row.apt.id}
+                      className="border border-[var(--callendra-border)] rounded-2xl px-6 py-4 flex justify-between items-center hover:border-[var(--callendra-border)] transition"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div
+                          className={`text-2xl font-mono font-bold w-16 ${row.apt.status === "cancel_requested" ? "text-yellow-400" : "text-[var(--callendra-accent)]"}`}
+                        >
+                          {formatTime(row.apt.date)}
+                        </div>
+                        <div>
+                          <div className="font-semibold">{row.apt.clientName}</div>
+                          <div className="text-sm text-[var(--callendra-text-secondary)]">
+                            {row.apt.service?.name} · with {row.apt.staff?.name}
+                          </div>
+                          <div className="text-xs text-[var(--callendra-text-secondary)] opacity-80 mt-0.5">
+                            {row.apt.business?.name}
+                          </div>
+                          {row.apt.status === "cancel_requested" && (
+                            <div className="text-xs text-yellow-400 mt-0.5">⏳ Cancel requested</div>
+                          )}
+                        </div>
                       </div>
-                      <div>
-                        <div className="font-semibold">{apt.clientName}</div>
-                        <div className="text-sm text-[var(--callendra-text-secondary)]">{apt.service?.name} · with {apt.staff?.name}</div>
-                        <div className="text-xs text-[var(--callendra-text-secondary)] opacity-80 mt-0.5">{apt.business?.name}</div>
-                        {apt.status === "cancel_requested" && (
-                          <div className="text-xs text-yellow-400 mt-0.5">⏳ Cancel requested</div>
-                        )}
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm font-semibold text-[var(--callendra-accent)]">
+                          ${row.apt.service?.price}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleCancel(row.apt.id)}
+                          className="text-xs text-[var(--callendra-text-secondary)] opacity-80 hover:text-red-400 transition border border-[var(--callendra-border)] px-3 py-1 rounded-full"
+                        >
+                          Cancel
+                        </button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm font-semibold text-[var(--callendra-accent)]">${apt.service?.price}</span>
-                      <button
-                        onClick={() => handleCancel(apt.id)}
-                        className="text-xs text-[var(--callendra-text-secondary)] opacity-80 hover:text-red-400 transition border border-[var(--callendra-border)] px-3 py-1 rounded-full"
-                      >Cancel</button>
+                  ) : (
+                    <div
+                      key={`break-${row.br.id}`}
+                      className="border border-dashed border-[var(--callendra-border)] rounded-2xl px-6 py-4 flex justify-between items-center bg-[color-mix(in_srgb,var(--callendra-text-primary)_5%,var(--callendra-bg))] transition"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="text-2xl font-mono font-bold w-16 text-[var(--callendra-text-secondary)]">
+                          {formatBreakRowTime(row.businessYmd, row.br.startTime)}
+                        </div>
+                        <div>
+                          <div className="font-semibold">{row.br.label || "Break"}</div>
+                          <div className="text-sm text-[var(--callendra-text-secondary)]">
+                            {row.br.duration} min · with {row.br.staff?.name}
+                          </div>
+                          {row.br.businessId ? (
+                            <div className="text-xs text-[var(--callendra-text-secondary)] opacity-80 mt-0.5">
+                              {locations.find((l: any) => l.id === row.br.businessId)?.name ?? ""}
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                      {canManageStaffBreaks ? (
+                        <button
+                          type="button"
+                          onClick={() => deleteStaffBreak(row.br.id)}
+                          className="text-xs text-[var(--callendra-text-secondary)] opacity-80 hover:text-red-400 transition border border-[var(--callendra-border)] px-3 py-1 rounded-full"
+                        >
+                          Remove
+                        </button>
+                      ) : null}
                     </div>
-                  </div>
-                ))}
+                  ),
+                )}
               </div>
             )}
           </div>
         ) : (
           <div id="today">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold">Today&apos;s appointments</h2>
-              <a href={bookingHref} target="_blank"
-                className="text-sm text-[var(--callendra-text-secondary)] hover:opacity-90 transition border border-[var(--callendra-border)] px-4 py-2 rounded-full">
-                🔗 Booking link
-              </a>
+            <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center mb-4">
+              <h2 className="text-lg font-semibold">{scheduleHeading}</h2>
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  type="date"
+                  value={scheduleDate}
+                  onChange={(e) => setScheduleDate(e.target.value)}
+                  className="bg-[var(--callendra-bg)] border border-[var(--callendra-border)] rounded-lg px-3 py-2 text-sm text-[var(--callendra-text-primary)] outline-none"
+                />
+                {canManageStaffBreaks && (
+                  <button
+                    type="button"
+                    onClick={openBreakModal}
+                    className="text-sm border border-[var(--callendra-border)] px-4 py-2 rounded-full hover:bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] transition"
+                  >
+                    + Add break
+                  </button>
+                )}
+                <a
+                  href={bookingHref}
+                  target="_blank"
+                  className="text-sm text-[var(--callendra-text-secondary)] hover:opacity-90 transition border border-[var(--callendra-border)] px-4 py-2 rounded-full"
+                >
+                  Booking link
+                </a>
+              </div>
             </div>
 
-            {appointments.length === 0 ? (
+            {scheduleRows.length === 0 ? (
               <div className="border border-[var(--callendra-border)] rounded-2xl p-8 text-center">
                 <div className="text-4xl mb-3">📅</div>
-                <p className="text-[var(--callendra-text-secondary)] text-sm">No appointments yet for today</p>
+                <p className="text-[var(--callendra-text-secondary)] text-sm">No appointments or breaks for this day</p>
                 <a href={bookingHref} target="_blank"
                   className="text-xs text-[var(--callendra-text-secondary)] opacity-80 hover:text-[var(--callendra-text-secondary)] transition mt-2 block">
                   Share your booking link to get started
@@ -491,50 +763,93 @@ export default function DashboardPage() {
               </div>
             ) : (
               <div className="flex flex-col gap-3">
-                {appointments.map((apt) => (
-                  <div key={apt.id} className="border border-[var(--callendra-border)] rounded-2xl px-6 py-4 flex justify-between items-center hover:border-[var(--callendra-border)] transition">
-                    <div className="flex items-center gap-4">
-                      <div className={`text-2xl font-mono font-bold w-16 ${apt.status === 'cancel_requested' ? 'text-yellow-400' : 'text-[var(--callendra-accent)]'}`}>
-                        {formatTime(apt.date)}
+                {scheduleRows.map((row) =>
+                  row.kind === "appointment" ? (
+                    <div
+                      key={row.apt.id}
+                      className="border border-[var(--callendra-border)] rounded-2xl px-6 py-4 flex justify-between items-center hover:border-[var(--callendra-border)] transition"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div
+                          className={`text-2xl font-mono font-bold w-16 ${row.apt.status === "cancel_requested" ? "text-yellow-400" : "text-[var(--callendra-accent)]"}`}
+                        >
+                          {formatTime(row.apt.date)}
+                        </div>
+                        <div>
+                          <div className="font-semibold">{row.apt.clientName}</div>
+                          <div className="text-sm text-[var(--callendra-text-secondary)]">
+                            {row.apt.service?.name} · with {row.apt.staff?.name}
+                          </div>
+                          {row.apt.status === "cancel_requested" && (
+                            <div className="text-xs text-yellow-400 mt-0.5">⏳ Cancel requested</div>
+                          )}
+                        </div>
                       </div>
-                      <div>
-                        <div className="font-semibold">{apt.clientName}</div>
-                        <div className="text-sm text-[var(--callendra-text-secondary)]">{apt.service?.name} · with {apt.staff?.name}</div>
-                        {apt.status === 'cancel_requested' && (
-                          <div className="text-xs text-yellow-400 mt-0.5">⏳ Cancel requested</div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm font-semibold text-[var(--callendra-accent)]">
+                          ${row.apt.service?.price}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleEdit(row.apt)}
+                          className="text-xs text-[var(--callendra-text-secondary)] hover:opacity-90 transition border border-[var(--callendra-border)] px-3 py-1 rounded-full"
+                        >
+                          Edit
+                        </button>
+                        {!isStaffUser ? (
+                          <button
+                            type="button"
+                            onClick={() => handleCancel(row.apt.id)}
+                            className="text-xs text-[var(--callendra-text-secondary)] opacity-80 hover:text-red-400 transition border border-[var(--callendra-border)] px-3 py-1 rounded-full"
+                          >
+                            Cancel
+                          </button>
+                        ) : row.apt.status === "cancel_requested" ? (
+                          <span className="text-xs text-yellow-400 border border-yellow-400/30 px-3 py-1 rounded-full">
+                            Pending
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCancelRequestApt(row.apt);
+                              setCancelReason("");
+                            }}
+                            className="text-xs text-[var(--callendra-text-secondary)] opacity-80 hover:text-yellow-400 transition border border-[var(--callendra-border)] px-3 py-1 rounded-full"
+                          >
+                            Request cancel
+                          </button>
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm font-semibold text-[var(--callendra-accent)]">${apt.service?.price}</span>
-                      <button
-                        onClick={() => handleEdit(apt)}
-                        className="text-xs text-[var(--callendra-text-secondary)] hover:opacity-90 transition border border-[var(--callendra-border)] px-3 py-1 rounded-full"
-                      >
-                        Edit
-                      </button>
-                      {!isStaffUser ? (
+                  ) : (
+                    <div
+                      key={`break-${row.br.id}`}
+                      className="border border-dashed border-[var(--callendra-border)] rounded-2xl px-6 py-4 flex justify-between items-center bg-[color-mix(in_srgb,var(--callendra-text-primary)_5%,var(--callendra-bg))] transition"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="text-2xl font-mono font-bold w-16 text-[var(--callendra-text-secondary)]">
+                          {formatBreakRowTime(row.businessYmd, row.br.startTime)}
+                        </div>
+                        <div>
+                          <div className="font-semibold">{row.br.label || "Break"}</div>
+                          <div className="text-sm text-[var(--callendra-text-secondary)]">
+                            {row.br.duration} min · with {row.br.staff?.name}
+                          </div>
+                        </div>
+                      </div>
+                      {canManageStaffBreaks ? (
                         <button
-                          onClick={() => handleCancel(apt.id)}
+                          type="button"
+                          onClick={() => deleteStaffBreak(row.br.id)}
                           className="text-xs text-[var(--callendra-text-secondary)] opacity-80 hover:text-red-400 transition border border-[var(--callendra-border)] px-3 py-1 rounded-full"
                         >
-                          Cancel
+                          Remove
                         </button>
-                      ) : apt.status === 'cancel_requested' ? (
-                        <span className="text-xs text-yellow-400 border border-yellow-400/30 px-3 py-1 rounded-full">
-                          Pending
-                        </span>
-                      ) : (
-                        <button
-                          onClick={() => { setCancelRequestApt(apt); setCancelReason(""); }}
-                          className="text-xs text-[var(--callendra-text-secondary)] opacity-80 hover:text-yellow-400 transition border border-[var(--callendra-border)] px-3 py-1 rounded-full"
-                        >
-                          Request cancel
-                        </button>
-                      )}
+                      ) : null}
                     </div>
-                  </div>
-                ))}
+                  ),
+                )}
               </div>
             )}
           </div>
@@ -828,6 +1143,163 @@ export default function DashboardPage() {
         serviceList={serviceList}
         onCreated={fetchData}
       />
+
+      {showBreakModal && (
+        <div className="fixed inset-0 bg-[color-mix(in_srgb,var(--callendra-text-primary)_72%,var(--callendra-bg))] backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_10%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-2xl p-6 w-full max-w-md flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
+            <h2 className="text-lg font-semibold">Add break</h2>
+            {accountHasMultipleBusinessRows && isMain && branchLocationsForBreaks.length > 0 ? (
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-[var(--callendra-text-secondary)]">Location</label>
+                <select
+                  value={breakForm.breakBusinessId}
+                  onChange={(e) => setBreakForm({ ...breakForm, breakBusinessId: e.target.value })}
+                  className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition"
+                >
+                  {branchLocationsForBreaks.map((loc: any) => (
+                    <option
+                      key={loc.id}
+                      value={loc.id}
+                      className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_10%,var(--callendra-bg))]"
+                    >
+                      {loc.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-[var(--callendra-text-secondary)]">Staff</label>
+              <select
+                value={breakForm.staffId}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  setBreakForm((prev) => {
+                    let biz = prev.breakBusinessId;
+                    if (accountHasMultipleBusinessRows && isMain && branchLocationsForBreaks.length > 0) {
+                      const s = staffList.find((x: any) => x.id === id);
+                      const allowed: string[] = s?.assignedLocationIds ?? [];
+                      if (allowed.length && !allowed.includes(biz)) {
+                        biz =
+                          allowed.find((bid) => branchLocationsForBreaks.some((l: any) => l.id === bid)) ??
+                          allowed[0];
+                      }
+                    }
+                    return { ...prev, staffId: id, breakBusinessId: biz };
+                  });
+                }}
+                className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition"
+              >
+                {staffList.map((s: any) => (
+                  <option
+                    key={s.id}
+                    value={s.id}
+                    className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_10%,var(--callendra-bg))]"
+                  >
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-[var(--callendra-text-secondary)]">Date</label>
+              <input
+                type="date"
+                value={breakForm.date}
+                onChange={(e) => setBreakForm({ ...breakForm, date: e.target.value })}
+                className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-[var(--callendra-text-secondary)]">Start time</label>
+              <select
+                value={breakForm.startTime}
+                onChange={(e) => setBreakForm({ ...breakForm, startTime: e.target.value })}
+                className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition"
+              >
+                {TIME_OPTIONS_15.map((t) => (
+                  <option
+                    key={t}
+                    value={t}
+                    className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_10%,var(--callendra-bg))]"
+                  >
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-[var(--callendra-text-secondary)]">Duration</label>
+              <select
+                value={breakForm.durationPreset}
+                onChange={(e) => setBreakForm({ ...breakForm, durationPreset: e.target.value })}
+                className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition"
+              >
+                <option value="15" className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_10%,var(--callendra-bg))]">
+                  15 min
+                </option>
+                <option value="30" className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_10%,var(--callendra-bg))]">
+                  30 min
+                </option>
+                <option value="45" className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_10%,var(--callendra-bg))]">
+                  45 min
+                </option>
+                <option value="60" className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_10%,var(--callendra-bg))]">
+                  60 min
+                </option>
+                <option value="90" className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_10%,var(--callendra-bg))]">
+                  90 min
+                </option>
+                <option value="120" className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_10%,var(--callendra-bg))]">
+                  120 min
+                </option>
+                <option value="custom" className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_10%,var(--callendra-bg))]">
+                  Custom…
+                </option>
+              </select>
+            </div>
+            {breakForm.durationPreset === "custom" ? (
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-[var(--callendra-text-secondary)]">Minutes</label>
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={breakForm.customMinutes}
+                  onChange={(e) => setBreakForm({ ...breakForm, customMinutes: e.target.value })}
+                  className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition"
+                />
+              </div>
+            ) : null}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-[var(--callendra-text-secondary)]">Label</label>
+              <input
+                value={breakForm.label}
+                onChange={(e) => setBreakForm({ ...breakForm, label: e.target.value })}
+                className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition"
+              />
+            </div>
+            {breakError ? <p className="text-red-400 text-sm">{breakError}</p> : null}
+            <div className="flex gap-3 mt-2">
+              <button
+                type="button"
+                disabled={breakSaving}
+                onClick={() => void saveBreak()}
+                className="flex-1 ui-btn-primary py-3 rounded-xl text-sm font-semibold transition disabled:opacity-50"
+              >
+                {breakSaving ? "Saving…" : "Save"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowBreakModal(false)}
+                className="flex-1 border border-[var(--callendra-border)] py-3 rounded-xl text-sm hover:bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] transition"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

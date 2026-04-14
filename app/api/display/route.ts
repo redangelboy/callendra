@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { loadLocationCatalog } from "@/lib/location-catalog";
-import { businessDayUtcRange } from "@/lib/business-timezone";
+import { businessDayUtcRange, utcFromYmdAndTime } from "@/lib/business-timezone";
+import { staffBreakDateFromYmd } from "@/lib/staff-break-date";
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL!
@@ -59,7 +60,23 @@ export async function GET(req: NextRequest) {
       orderBy: { date: "asc" }
     });
 
-    return NextResponse.json({ business, appointments });
+    const dayKey = staffBreakDateFromYmd(todayChicago);
+    const staffBreaksRaw = await prisma.staffBreak.findMany({
+      where: { businessId: business.id, date: dayKey },
+      include: { staff: { select: { id: true, name: true } } },
+      orderBy: { startTime: "asc" },
+    });
+    const staffBreaks = staffBreaksRaw.map((b) => ({
+      id: b.id,
+      staffId: b.staffId,
+      label: b.label,
+      startTime: b.startTime,
+      duration: b.duration,
+      startAt: utcFromYmdAndTime(todayChicago, b.startTime).toISOString(),
+      staff: b.staff,
+    }));
+
+    return NextResponse.json({ business, appointments, staffBreaks });
   } catch (error) {
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }

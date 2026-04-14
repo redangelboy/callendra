@@ -63,13 +63,18 @@ export async function GET(req: NextRequest) {
     if (!schedule) return NextResponse.json({ slots: [] });
 
     const { start: dayStart, end: dayEnd } = businessDayUtcRange(date);
-    const existingAppointments = await prisma.appointment.findMany({
+       const existingAppointments = await prisma.appointment.findMany({
       where: {
         staffId,
         date: { gte: dayStart, lte: dayEnd },
         status: { not: "cancelled" },
       },
       include: { service: true },
+    });
+
+    const dayKey = new Date(`${date}T00:00:00.000Z`);
+    const staffBreaks = await prisma.staffBreak.findMany({
+      where: { staffId, businessId: business.id, date: dayKey },
     });
 
     const rawDuration = Number(service.duration);
@@ -84,15 +89,21 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ slots: [] });
     }
 
-    /** true si [slotStart, slotEnd) se solapa con alguna cita existente (misma regla que el POST de booking). */
+    /** true si [slotStart, slotEnd) se solapa con cita o break (misma regla que el POST de booking). */
     function slotOverlapsExisting(slotStart: Date, slotEnd: Date): boolean {
       const s0 = slotStart.getTime();
       const e0 = slotEnd.getTime();
-      return existingAppointments.some((apt) => {
+      const aptHit = existingAppointments.some((apt) => {
         const aptDur = apt.service?.duration ?? 30;
         const aptStart = apt.date.getTime();
         const aptEnd = aptStart + aptDur * 60_000;
         return aptStart < e0 && aptEnd > s0;
+      });
+      if (aptHit) return true;
+      return staffBreaks.some((br) => {
+        const bStart = utcFromYmdAndTime(date, br.startTime).getTime();
+        const bEnd = bStart + br.duration * 60_000;
+        return bStart < e0 && bEnd > s0;
       });
     }
 
