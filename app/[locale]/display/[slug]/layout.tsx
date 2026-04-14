@@ -1,8 +1,21 @@
+import type { Metadata } from "next";
 import { CallendraThemeStyle } from "@/components/callendra-theme-style";
 import { DEFAULT_THEME_ID, isValidThemeId } from "@/lib/callendra-themes";
 import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string; slug: string }>;
+}): Promise<Metadata> {
+  const { locale, slug } = await params;
+  const path = `/${locale}/display/${slug}`;
+  return {
+    manifest: `/manifest?startUrl=${encodeURIComponent(path)}`,
+  };
+}
 
 export default async function DisplayLayout({
   children,

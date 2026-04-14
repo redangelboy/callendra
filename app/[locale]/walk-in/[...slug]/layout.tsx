@@ -1,9 +1,26 @@
+import type { Metadata } from "next";
 import { CallendraThemeStyle } from "@/components/callendra-theme-style";
 import { DEFAULT_THEME_ID, isValidThemeId } from "@/lib/callendra-themes";
 import { prisma } from "@/lib/db";
 import { resolveBusinessForBooking } from "@/lib/booking-business";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string; slug: string[] }>;
+}): Promise<Metadata> {
+  const { locale, slug } = await params;
+  const segments = (slug ?? []).filter(Boolean);
+  const path =
+    segments.length > 0
+      ? `/${locale}/walk-in/${segments.join("/")}`
+      : `/${locale}/walk-in`;
+  return {
+    manifest: `/manifest?startUrl=${encodeURIComponent(path)}`,
+  };
+}
 
 export default async function WalkInLayout({
   children,

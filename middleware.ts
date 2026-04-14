@@ -1,5 +1,4 @@
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
+import { NextResponse, NextRequest } from "next/server";
 import createIntlMiddleware from "next-intl/middleware";
 import { jwtVerify } from "jose";
 import { routing } from "./next-intl.config";
@@ -33,7 +32,11 @@ export default async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  return intlMiddleware(request);
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-pathname", request.nextUrl.pathname);
+  return intlMiddleware(
+    new NextRequest(request.url, { headers: requestHeaders }),
+  );
 }
 
 export const config = {

@@ -3,6 +3,7 @@
   "short_name": "Callendra",
   "start_url": "/",
   "display": "standalone",
+  "scope": "/",
   "background_color": "#0a1628",
   "theme_color": "#2563eb",
   "orientation": "any",
