@@ -26,7 +26,19 @@ export async function GET(req: NextRequest) {
   const param = req.nextUrl.searchParams.get("startUrl");
   const start_url = safeStartUrl(param);
 
-  const body = { ...BASE_MANIFEST, start_url };
+  const isStaffDay = start_url.includes("/staff-day");
+  const body = {
+    ...BASE_MANIFEST,
+    start_url,
+    /** Lets each saved shortcut open its own token URL; avoids clobbering installs. */
+    id: start_url,
+    ...(isStaffDay
+      ? {
+          name: "Callendra · Staff",
+          short_name: "Staff",
+        }
+      : {}),
+  };
 
   return NextResponse.json(body, {
     headers: {

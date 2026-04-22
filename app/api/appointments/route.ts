@@ -6,6 +6,7 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { effectiveServicePrice } from "@/lib/location-catalog";
 import { findStaffIntervalConflict } from "@/lib/appointment-overlap";
+import { APPOINTMENT_ACTIVE_DAY_LIST_FILTER } from "@/lib/appointment-blocking-status";
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL!
@@ -36,7 +37,7 @@ export async function GET(req: NextRequest) {
     }
 
     const appointments = await prisma.appointment.findMany({
-      where: { businessId, date: { gte: rangeStart, lte: rangeEnd }, status: { not: "cancelled" } },
+      where: { businessId, date: { gte: rangeStart, lte: rangeEnd }, ...APPOINTMENT_ACTIVE_DAY_LIST_FILTER },
       include: { staff: true, service: true },
       orderBy: { date: "asc" }
     });
@@ -81,12 +82,17 @@ export async function PATCH(req: NextRequest) {
       existing = await prisma.appointment.findFirst({ where: { id, businessId } });
     }
     if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    const updateData: any = { status };
+    const updateData: Record<string, unknown> = {};
+    if (typeof status === "string") updateData.status = status;
     if (cancelReason !== undefined) updateData.cancelReason = cancelReason;
     if (date && time) updateData.date = utcFromYmdAndTime(date, time);
     else if (date) updateData.date = new Date(date);
     if (staffId) updateData.staffId = staffId;
     if (serviceId) updateData.serviceId = serviceId;
+
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json({ error: "No valid updates" }, { status: 400 });
+    }
 
     const mergedStaffId = staffId ?? existing.staffId;
     const mergedServiceId = serviceId ?? existing.serviceId;

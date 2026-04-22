@@ -1,11 +1,15 @@
 "use client";
 import { useState, useEffect } from "react";
+import { useParams } from "next/navigation";
 import { isMainBusinessFromPayload } from "@/lib/main-business";
 
 export default function StaffPage() {
+  const params = useParams();
+  const locale = typeof params?.locale === "string" ? params.locale : "en";
   const [staff, setStaff] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
   const [isMain, setIsMain] = useState(false);
+  const [isOwner, setIsOwner] = useState(false);
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -13,16 +17,55 @@ export default function StaffPage() {
   const [editingStaff, setEditingStaff] = useState<any>(null);
   const [editForm, setEditForm] = useState({ name: "", phone: "", email: "" });
   const [editLoading, setEditLoading] = useState(false);
+  const [regenTokenId, setRegenTokenId] = useState<string | null>(null);
+
+  const staffDayUrl = (token: string | null | undefined) => {
+    if (!token || typeof window === "undefined") return "";
+    const origin = (process.env.NEXT_PUBLIC_URL || window.location.origin).replace(/\/$/, "");
+    return `${origin}/${locale}/staff-day?token=${encodeURIComponent(token)}`;
+  };
+
+  const copyStaffDayUrl = async (token: string | null | undefined) => {
+    const url = staffDayUrl(token);
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      setError("Could not copy link");
+    }
+  };
+
+  const regenerateStaffDayToken = async (staffId: string) => {
+    setRegenTokenId(staffId);
+    setError("");
+    try {
+      const res = await fetch("/api/staff", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: staffId, action: "regenerateStaffDayViewToken" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not generate link");
+      await fetchAll();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Error");
+    } finally {
+      setRegenTokenId(null);
+    }
+  };
 
   const fetchAll = async () => {
-    const [staffRes, locRes, bizRes] = await Promise.all([
+    const [staffRes, locRes, bizRes, sessionRes] = await Promise.all([
       fetch("/api/staff"),
       fetch("/api/business/locations"),
       fetch("/api/business"),
+      fetch("/api/auth/session"),
     ]);
     const staffData = await staffRes.json();
     const locData = await locRes.json();
     const biz = await bizRes.json();
+    const sessionData = await sessionRes.json();
+    setIsOwner(!!sessionData.ownerId);
     if (Array.isArray(staffData)) setStaff(staffData);
     if (Array.isArray(locData)) setLocations(locData);
     if (biz?.id) setIsMain(isMainBusinessFromPayload(biz));
@@ -218,6 +261,47 @@ export default function StaffPage() {
                     </div>
                   )}
                 </div>
+                {isOwner && (
+                  <div className="mt-4 pt-4 border-t border-[var(--callendra-border)]">
+                    <p className="text-xs font-medium text-[var(--callendra-text-primary)] mb-1">Personal day link (phone)</p>
+                    <p className="text-xs text-[var(--callendra-text-secondary)] opacity-90 mb-2">
+                      No login. Barber sees only their appointments today, can finish the current one, and optionally pull the next client earlier.
+                    </p>
+                    {s.staffDayViewToken ? (
+                      <>
+                        <div className="text-[11px] font-mono break-all rounded-lg border border-[var(--callendra-border)] bg-[color-mix(in_srgb,var(--callendra-text-primary)_5%,var(--callendra-bg))] px-2 py-2 mb-2">
+                          {typeof window !== "undefined" ? staffDayUrl(s.staffDayViewToken) : `/${locale}/staff-day?token=…`}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => void copyStaffDayUrl(s.staffDayViewToken)}
+                            className="text-xs border border-[var(--callendra-border)] px-3 py-1.5 rounded-full hover:opacity-90 transition"
+                          >
+                            Copy link
+                          </button>
+                          <button
+                            type="button"
+                            disabled={regenTokenId === s.id}
+                            onClick={() => void regenerateStaffDayToken(s.id)}
+                            className="text-xs border border-[var(--callendra-border)] px-3 py-1.5 rounded-full hover:opacity-90 transition disabled:opacity-50"
+                          >
+                            {regenTokenId === s.id ? "…" : "New token"}
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={regenTokenId === s.id}
+                        onClick={() => void regenerateStaffDayToken(s.id)}
+                        className="text-xs ui-btn-primary px-3 py-2 rounded-xl font-medium disabled:opacity-50"
+                      >
+                        {regenTokenId === s.id ? "Generating…" : "Generate personal link"}
+                      </button>
+                    )}
+                  </div>
+                )}
                 {isMain && branchLocations.length > 0 && (
                   <div className="mt-4 pt-4 border-t border-[var(--callendra-border)]">
                     <p className="text-xs text-[var(--callendra-text-secondary)] opacity-80 mb-2">Locations</p>

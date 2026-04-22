@@ -34,6 +34,8 @@ export default async function middleware(request: NextRequest) {
 
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-pathname", request.nextUrl.pathname);
+  /** Path + query (e.g. staff-day token) for scoped PWA manifest start_url */
+  requestHeaders.set("x-pathsearch", `${request.nextUrl.pathname}${request.nextUrl.search}`);
   return intlMiddleware(
     new NextRequest(request.url, { headers: requestHeaders }),
   );

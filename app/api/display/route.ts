@@ -4,6 +4,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { loadLocationCatalog } from "@/lib/location-catalog";
 import { businessDayUtcRange, utcFromYmdAndTime } from "@/lib/business-timezone";
 import { staffBreakDateFromYmd } from "@/lib/staff-break-date";
+import { APPOINTMENT_ACTIVE_DAY_LIST_FILTER } from "@/lib/appointment-blocking-status";
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL!
@@ -54,7 +55,7 @@ export async function GET(req: NextRequest) {
       where: {
         businessId: business.id,
         date: { gte: startUTC, lte: endUTC },
-        status: { not: "cancelled" }
+        ...APPOINTMENT_ACTIVE_DAY_LIST_FILTER,
       },
       include: { service: true, staff: true },
       orderBy: { date: "asc" }

@@ -8,6 +8,7 @@ import {
   utcFromYmdAndTime,
 } from "@/lib/business-timezone";
 import { walkInTokensMatch } from "@/lib/walk-in-token";
+import { APPOINTMENT_BLOCKING_STATUS_FILTER } from "@/lib/appointment-blocking-status";
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL!
@@ -67,7 +68,7 @@ export async function GET(req: NextRequest) {
       where: {
         staffId,
         date: { gte: dayStart, lte: dayEnd },
-        status: { not: "cancelled" },
+        ...APPOINTMENT_BLOCKING_STATUS_FILTER,
       },
       include: { service: true },
     });

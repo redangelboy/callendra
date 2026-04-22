@@ -11,9 +11,10 @@ const metadataBaseUrl =
 export async function generateMetadata(): Promise<Metadata> {
   const h = await headers();
   const path = h.get("x-pathname") ?? "";
+  const pathsearch = h.get("x-pathsearch") ?? path;
   const manifest =
     path.includes("/walk-in/") || path.includes("/display/")
-      ? `/manifest?startUrl=${encodeURIComponent(path)}`
+      ? `/manifest?startUrl=${encodeURIComponent(pathsearch)}`
       : "/manifest.json";
 
   return {

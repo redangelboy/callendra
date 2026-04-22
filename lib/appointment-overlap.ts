@@ -2,6 +2,7 @@ import { DateTime } from "luxon";
 import type { PrismaClient, StaffBreak } from "@prisma/client";
 import { BUSINESS_TIMEZONE, utcFromYmdAndTime } from "@/lib/business-timezone";
 import { staffBreakDateFromYmd } from "@/lib/staff-break-date";
+import { APPOINTMENT_BLOCKING_STATUS_FILTER } from "@/lib/appointment-blocking-status";
 
 /**
  * Detecta si ya existe una cita (no cancelada) del mismo staff que se solape
@@ -21,7 +22,7 @@ export async function findStaffOverlappingAppointment(
   const candidates = await prisma.appointment.findMany({
     where: {
       staffId,
-      status: { not: "cancelled" },
+      ...APPOINTMENT_BLOCKING_STATUS_FILTER,
       ...(excludeAppointmentId ? { id: { not: excludeAppointmentId } } : {}),
       date: {
         gte: new Date(start.getTime() - 36 * 60 * 60 * 1000),

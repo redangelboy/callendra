@@ -51,6 +51,8 @@ model Staff {
   email      String?
   photo      String?
   active     Boolean @default(true)
+  /** Secret for /[locale]/staff-day?token=… (personal day list, no login). */
+  staffDayViewToken String? @unique
 
   business         Business          @relation(fields: [businessId], references: [id])
   staffAssignments StaffAssignment[]
