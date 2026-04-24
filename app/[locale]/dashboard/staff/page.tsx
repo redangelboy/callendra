@@ -186,16 +186,17 @@ export default function StaffPage() {
     const all = Array.isArray(locations) ? locations : [];
     const parent = (business.parentSlug ?? business.slug ?? "").trim();
     const sameParent = all.filter((l: any) => ((l.parentSlug ?? l.slug ?? "").trim() === parent));
+    const branchOnly = sameParent.filter((l: any) => {
+      const ls = String(l?.locationSlug ?? "").trim();
+      return ls !== "" && ls !== "main";
+    });
     const locationCount = sameParent.length || 1;
     const assigned: string[] = Array.isArray(staffRow?.assignedLocationIds) ? staffRow.assignedLocationIds : [];
     let targets: any[] = [];
     if (isMain) {
-      targets = sameParent.filter((l: any) => assigned.includes(l.id));
+      targets = branchOnly.filter((l: any) => assigned.includes(l.id));
       if (targets.length === 0) {
-        targets = sameParent.filter((l: any) => {
-          const ls = String(l?.locationSlug ?? "").trim();
-          return ls !== "" && ls !== "main";
-        });
+        targets = branchOnly;
       }
     } else {
       targets = [business];
