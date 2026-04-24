@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { notifyCancelRequest, notifyClientBookingConfirmed } from "@/lib/notify";
+import { notifyCancelRequest, notifyClientBookingConfirmed, notifyStaffAppointmentConfirmed } from "@/lib/notify";
 import { buildPublicBookingAbsUrl } from "@/lib/booking-public-url";
 import { businessDayUtcRange, utcFromYmdAndTime } from "@/lib/business-timezone";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { effectiveServicePrice } from "@/lib/location-catalog";
 import { findStaffIntervalConflict } from "@/lib/appointment-overlap";
+import { appointmentTotalDurationMin } from "@/lib/appointment-duration";
 import { APPOINTMENT_ACTIVE_DAY_LIST_FILTER } from "@/lib/appointment-blocking-status";
 
 const adapter = new PrismaPg({
@@ -38,7 +39,7 @@ export async function GET(req: NextRequest) {
 
     const appointments = await prisma.appointment.findMany({
       where: { businessId, date: { gte: rangeStart, lte: rangeEnd }, ...APPOINTMENT_ACTIVE_DAY_LIST_FILTER },
-      include: { staff: true, service: true },
+      include: { staff: true, service: true, extras: { include: { service: true } } },
       orderBy: { date: "asc" }
     });
 
@@ -46,11 +47,14 @@ export async function GET(req: NextRequest) {
       appointments.map(async (apt) => {
         const p = await effectiveServicePrice(prisma, apt.serviceId, businessId);
         const effectivePrice = p ?? apt.service?.price ?? 0;
+        const extrasSum = (apt.extras ?? []).reduce((s, e) => s + e.linePrice, 0);
         return {
           ...apt,
           service: apt.service
             ? { ...apt.service, price: effectivePrice }
             : apt.service,
+          totalPrice: effectivePrice + extrasSum,
+          totalDurationMin: appointmentTotalDurationMin(apt),
         };
       })
     );
@@ -77,9 +81,15 @@ export async function PATCH(req: NextRequest) {
     const { ownerId } = JSON.parse(session);
     let existing;
     if (ownerId) {
-      existing = await prisma.appointment.findFirst({ where: { id } });
+      existing = await prisma.appointment.findFirst({
+        where: { id },
+        include: { service: true, extras: true },
+      });
     } else {
-      existing = await prisma.appointment.findFirst({ where: { id, businessId } });
+      existing = await prisma.appointment.findFirst({
+        where: { id, businessId },
+        include: { service: true, extras: true },
+      });
     }
     if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
     const updateData: Record<string, unknown> = {};
@@ -98,8 +108,13 @@ export async function PATCH(req: NextRequest) {
     const mergedServiceId = serviceId ?? existing.serviceId;
     const mergedStart = date && time ? utcFromYmdAndTime(date, time) : new Date(existing.date);
     if (date && time || staffId || serviceId) {
-      const svc = await prisma.service.findUnique({ where: { id: mergedServiceId } });
-      const durMin = svc?.duration ?? 30;
+      const primarySvc = mergedServiceId
+        ? await prisma.service.findUnique({ where: { id: mergedServiceId } })
+        : existing.service;
+      const durMin = appointmentTotalDurationMin({
+        service: primarySvc,
+        extras: existing.extras ?? [],
+      });
       const mergedEnd = new Date(mergedStart.getTime() + durMin * 60_000);
       const conflict = await findStaffIntervalConflict(prisma, {
         staffId: mergedStaffId,
@@ -122,6 +137,31 @@ export async function PATCH(req: NextRequest) {
     }
 
     const appointment = await prisma.appointment.update({ where: { id }, data: updateData, include: { staff: true, service: true, business: { include: { owner: true } } } });
+
+    const becameConfirmed =
+      typeof status === "string" && status === "confirmed" && existing.status !== "confirmed";
+    if (becameConfirmed && appointment.staff) {
+      try {
+        const sid = appointment.serviceId ?? existing.serviceId;
+        let price = appointment.service?.price ?? 0;
+        if (sid) {
+          const p = await effectiveServicePrice(prisma, sid, appointment.businessId);
+          if (p != null) price = p;
+        }
+        await notifyStaffAppointmentConfirmed({
+          staffEmail: appointment.staff.email,
+          staffPhone: appointment.staff.phone,
+          staffName: appointment.staff.name,
+          businessName: (appointment.business as { name?: string })?.name ?? "Business",
+          clientName: appointment.clientName,
+          serviceName: appointment.service?.name ?? "Service",
+          price,
+          appointmentAt: appointment.date,
+        });
+      } catch (e) {
+        console.error("Staff appointment confirmed notify error:", e);
+      }
+    }
 
     // Notificar al owner si es cancel_requested
     if (status === "cancel_requested" && cancelReason) {
@@ -160,8 +200,8 @@ export async function POST(req: NextRequest) {
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const { businessId } = JSON.parse(session);
     const { clientName, clientPhone, clientEmail, staffId, serviceId, date, time } = await req.json();
-    if (!clientName || !staffId || !serviceId || !date || !time) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    if (!String(clientName ?? "").trim() || !staffId || !serviceId || !date || !time) {
+      return NextResponse.json({ error: "Client name, staff, service, date and time are required" }, { status: 400 });
     }
 
     const assigned = await prisma.staffAssignment.findFirst({
@@ -180,8 +220,8 @@ export async function POST(req: NextRequest) {
     }
 
     const aptDate = utcFromYmdAndTime(date, time);
-    const service = await prisma.service.findUnique({ where: { id: serviceId } });
-    const durMin = service?.duration ?? 30;
+    const service = svcLoc.service;
+    const durMin = appointmentTotalDurationMin({ service, extras: [] });
     const aptEnd = new Date(aptDate.getTime() + durMin * 60_000);
 
     const conflict = await findStaffIntervalConflict(prisma, {
@@ -204,8 +244,8 @@ export async function POST(req: NextRequest) {
 
     const appointment = await prisma.appointment.create({
       data: {
-        clientName,
-        clientPhone: clientPhone || "",
+        clientName: String(clientName).trim(),
+        clientPhone: String(clientPhone ?? "").trim() || "",
         clientEmail: clientEmail != null && String(clientEmail).trim() ? String(clientEmail).trim() : null,
         staffId,
         serviceId,
@@ -241,6 +281,26 @@ export async function POST(req: NextRequest) {
         });
       } catch (e) {
         console.error("Dashboard booking client notify error:", e);
+      }
+      try {
+        const price =
+          (await effectiveServicePrice(prisma, serviceId, businessId)) ??
+          appointment.service?.price ??
+          0;
+        if (appointment.staff) {
+          await notifyStaffAppointmentConfirmed({
+            staffEmail: appointment.staff.email,
+            staffPhone: appointment.staff.phone,
+            staffName: appointment.staff.name,
+            businessName: bizRow.name,
+            clientName: appointment.clientName,
+            serviceName: appointment.service?.name || "Service",
+            price,
+            appointmentAt: appointment.date,
+          });
+        }
+      } catch (e) {
+        console.error("Dashboard booking staff notify error:", e);
       }
     }
 

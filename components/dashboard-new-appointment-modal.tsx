@@ -108,8 +108,12 @@ export function DashboardNewAppointmentModal({
   }, [slots, selectedDate, nowTick]);
 
   const handleCreate = async () => {
-    if (!selectedStaff || !selectedService || !selectedDate || !selectedTime || !form.clientName.trim()) {
-      setError("Complete all fields");
+    if (!selectedStaff || !selectedService || !selectedDate || !selectedTime) {
+      setError("Complete staff, service, date and time");
+      return;
+    }
+    if (!form.clientName.trim()) {
+      setError("Client name is required");
       return;
     }
     setLoading(true);
@@ -120,7 +124,7 @@ export function DashboardNewAppointmentModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           clientName: form.clientName.trim(),
-          clientPhone: form.clientPhone.trim(),
+          clientPhone: form.clientPhone.trim() || "",
           clientEmail: form.clientEmail.trim() || undefined,
           staffId: selectedStaff.id,
           serviceId: selectedService.id,
@@ -343,7 +347,7 @@ export function DashboardNewAppointmentModal({
               />
               <input
                 type="tel"
-                placeholder="Phone (for SMS confirmation)"
+                placeholder="Phone (optional, for SMS confirmation)"
                 value={form.clientPhone}
                 onChange={(e) => setForm({ ...form, clientPhone: e.target.value })}
                 className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] text-[var(--callendra-text-primary)]"

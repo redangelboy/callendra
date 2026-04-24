@@ -8,6 +8,7 @@ import {
   utcFromYmdAndTime,
 } from "@/lib/business-timezone";
 import { walkInTokensMatch } from "@/lib/walk-in-token";
+import { appointmentTotalDurationMin } from "@/lib/appointment-duration";
 import { APPOINTMENT_BLOCKING_STATUS_FILTER } from "@/lib/appointment-blocking-status";
 
 const adapter = new PrismaPg({
@@ -64,13 +65,13 @@ export async function GET(req: NextRequest) {
     if (!schedule) return NextResponse.json({ slots: [] });
 
     const { start: dayStart, end: dayEnd } = businessDayUtcRange(date);
-       const existingAppointments = await prisma.appointment.findMany({
+    const existingAppointments = await prisma.appointment.findMany({
       where: {
         staffId,
         date: { gte: dayStart, lte: dayEnd },
         ...APPOINTMENT_BLOCKING_STATUS_FILTER,
       },
-      include: { service: true },
+      include: { service: true, extras: true },
     });
 
     const dayKey = new Date(`${date}T00:00:00.000Z`);
@@ -95,7 +96,7 @@ export async function GET(req: NextRequest) {
       const s0 = slotStart.getTime();
       const e0 = slotEnd.getTime();
       const aptHit = existingAppointments.some((apt) => {
-        const aptDur = apt.service?.duration ?? 30;
+        const aptDur = appointmentTotalDurationMin(apt);
         const aptStart = apt.date.getTime();
         const aptEnd = aptStart + aptDur * 60_000;
         return aptStart < e0 && aptEnd > s0;

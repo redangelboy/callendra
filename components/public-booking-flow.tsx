@@ -98,6 +98,40 @@ export function PublicBookingFlow({ walkInToken = null }: PublicBookingFlowProps
   const [confirmed, setConfirmed] = useState(false);
   const [error, setError] = useState("");
   const [nowTick, setNowTick] = useState(Date.now());
+  /** Walk-in kiosk: seconds until auto-return to step 1 (null = not counting). */
+  const [walkInAutoResetSeconds, setWalkInAutoResetSeconds] = useState<number | null>(null);
+
+  const resetBookingFlowToStart = useCallback(() => {
+    setConfirmed(false);
+    setStep(1);
+    setSelectedStaff(null);
+    setSelectedService(null);
+    setSelectedDate("");
+    setSelectedTime("");
+    setForm({ clientName: "", clientPhone: "", clientEmail: "" });
+    setError("");
+    setWalkInAutoResetSeconds(null);
+  }, []);
+
+  useEffect(() => {
+    if (!confirmed || !isWalkIn) {
+      setWalkInAutoResetSeconds(null);
+      return;
+    }
+    let remaining = 10;
+    setWalkInAutoResetSeconds(remaining);
+    const id = window.setInterval(() => {
+      remaining -= 1;
+      if (remaining <= 0) {
+        window.clearInterval(id);
+        setWalkInAutoResetSeconds(null);
+        resetBookingFlowToStart();
+      } else {
+        setWalkInAutoResetSeconds(remaining);
+      }
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [confirmed, isWalkIn, resetBookingFlowToStart]);
 
   const contentMaxW = "w-full max-w-lg sm:max-w-2xl lg:max-w-4xl xl:max-w-5xl";
   const slotGridClass = "grid min-w-0 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2";
@@ -175,8 +209,12 @@ export function PublicBookingFlow({ walkInToken = null }: PublicBookingFlowProps
   }, [slots, selectedDate, nowTick]);
 
   const handleBook = async () => {
-    if (!form.clientName || !form.clientPhone) {
-      setError("Name and phone are required");
+    if (!form.clientName.trim()) {
+      setError("Name is required");
+      return;
+    }
+    if (!isWalkIn && !form.clientPhone.trim()) {
+      setError("Phone is required for online booking");
       return;
     }
     setLoading(true);
@@ -248,6 +286,12 @@ export function PublicBookingFlow({ walkInToken = null }: PublicBookingFlowProps
             <div className="text-6xl mb-4">✅</div>
             <h1 className="text-2xl font-bold text-[var(--callendra-text-primary)] mb-2">Booking Confirmed!</h1>
             <p className="text-[var(--callendra-text-secondary)]">Your appointment at {business.name} is confirmed.</p>
+            {isWalkIn && walkInAutoResetSeconds != null ? (
+              <p className="text-xs text-[var(--callendra-text-secondary)] mt-3 tabular-nums">
+                Next guest in <span className="font-semibold text-[var(--callendra-text-primary)]">{walkInAutoResetSeconds}</span>s
+                — or tap below to start now
+              </p>
+            ) : null}
             <div className="mt-6 border border-[var(--callendra-border)] rounded-2xl p-6 text-left max-w-sm mx-auto">
               <div className="flex items-start gap-4 mb-4">
                 {selectedStaff && (
@@ -272,14 +316,8 @@ export function PublicBookingFlow({ walkInToken = null }: PublicBookingFlowProps
               </div>
             </div>
             <button
-              onClick={() => {
-                setConfirmed(false);
-                setStep(1);
-                setSelectedStaff(null);
-                setSelectedService(null);
-                setSelectedDate("");
-                setSelectedTime("");
-              }}
+              type="button"
+              onClick={resetBookingFlowToStart}
               className="mt-6 text-sm text-[var(--callendra-text-secondary)] hover:opacity-90 transition"
             >
               Book another appointment
@@ -473,7 +511,7 @@ export function PublicBookingFlow({ walkInToken = null }: PublicBookingFlowProps
                 />
                 <input
                   type="tel"
-                  placeholder="Phone number *"
+                  placeholder={isWalkIn ? "Phone (optional)" : "Phone number *"}
                   value={form.clientPhone}
                   onChange={(e) => setForm({ ...form, clientPhone: e.target.value })}
                   className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition min-w-0"

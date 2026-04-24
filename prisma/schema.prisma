@@ -39,6 +39,8 @@ model Business {
   owner             Owner             @relation(fields: [ownerId], references: [id])
   staffUsers        StaffUser[]
   staffBreaks       StaffBreak[]
+  timeEntries       TimeEntry[]
+  clockQrTokens     ClockQrToken[]
 
   @@index([parentSlug])
 }
@@ -60,6 +62,7 @@ model Staff {
   schedules        Schedule[]
   staffUsers        StaffUser[]
   staffBreaks       StaffBreak[]
+  timeEntries       TimeEntry[]
 }
 
 model StaffBreak {
@@ -78,6 +81,35 @@ model StaffBreak {
   @@index([staffId, date])
 }
 
+model TimeEntry {
+  id         String   @id @default(cuid())
+  staffId    String
+  staff      Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  type       String
+  timestamp  DateTime @default(now())
+  createdAt  DateTime @default(now())
+  /** Cloudinary (or other HTTPS) URL — selfie taken at clock-in/out on staff-day. */
+  selfieUrl  String?
+
+  @@index([businessId, timestamp])
+  @@index([staffId, timestamp])
+}
+
+model ClockQrToken {
+  id         String    @id @default(cuid())
+  businessId String
+  business   Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  token      String    @unique
+  expiresAt  DateTime
+  usedBy     String?
+  usedAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([businessId, expiresAt])
+}
+
 model Service {
   id         String  @id @default(cuid())
   businessId String
@@ -86,9 +118,10 @@ model Service {
   duration   Int
   active     Boolean @default(true)
 
-  business         Business          @relation(fields: [businessId], references: [id])
-  serviceLocations ServiceLocation[]
-  appointments     Appointment[]
+  business           Business            @relation(fields: [businessId], references: [id])
+  serviceLocations   ServiceLocation[]
+  appointments       Appointment[]
+  appointmentExtras  AppointmentExtra[]
 }
 
 model StaffAssignment {
@@ -146,9 +179,26 @@ model Appointment {
   source      String   @default("web")
   createdAt   DateTime @default(now())
 
-  business Business @relation(fields: [businessId], references: [id])
-  staff    Staff    @relation(fields: [staffId], references: [id])
-  service  Service?  @relation(fields: [serviceId], references: [id])
+  business Business           @relation(fields: [businessId], references: [id])
+  staff    Staff              @relation(fields: [staffId], references: [id])
+  service  Service?           @relation(fields: [serviceId], references: [id])
+  extras   AppointmentExtra[]
+}
+
+/** Add-on service during visit (catalog or custom). Extends block duration from appointment start. */
+model AppointmentExtra {
+  id               String   @id @default(cuid())
+  appointmentId    String
+  appointment      Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  serviceId        String?
+  service          Service?    @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  /** When serviceId is null, this is the line label (e.g. "Extra service"). */
+  customLabel      String?
+  extraDurationMin Int
+  linePrice        Float
+  createdAt        DateTime @default(now())
+
+  @@index([appointmentId])
 }
 
 model Owner {

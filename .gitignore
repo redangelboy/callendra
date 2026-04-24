@@ -4,3 +4,7 @@ node_modules/
 *.log
 .DS_Store
 .env.local
+
+# Local TLS for npm run dev:https (mkcert)
+certs/*.pem
+certs/

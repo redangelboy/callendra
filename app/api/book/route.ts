@@ -35,7 +35,8 @@ async function verifyRecaptcha(token: string): Promise<boolean> {
   return data.success && data.score >= 0.5;
 }
 import { buildPublicBookingAbsUrl } from "@/lib/booking-public-url";
-import { notifyClientBookingConfirmed } from "@/lib/notify";
+import { notifyClientBookingConfirmed, notifyStaffAppointmentConfirmed } from "@/lib/notify";
+import { effectiveServicePrice } from "@/lib/location-catalog";
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL!
@@ -112,8 +113,8 @@ export async function POST(req: NextRequest) {
       recaptchaToken,
     } = body;
 
-    if (!staffId || !serviceId || !date || !time || !clientName || !clientPhone) {
-      return NextResponse.json({ error: "All fields required" }, { status: 400 });
+    if (!staffId || !serviceId || !date || !time || !String(clientName ?? "").trim()) {
+      return NextResponse.json({ error: "Name, staff, service, date and time are required" }, { status: 400 });
     }
 
     if (!bodySlug && !parentSlug) {
@@ -135,6 +136,10 @@ export async function POST(req: NextRequest) {
 
     if (typeof bodyWalkInToken === "string" && bodyWalkInToken.trim() !== "" && !kioskOk) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    if (!kioskOk && !String(clientPhone ?? "").trim()) {
+      return NextResponse.json({ error: "Phone is required for online booking" }, { status: 400 });
     }
 
     if (!kioskOk) {
@@ -193,9 +198,9 @@ export async function POST(req: NextRequest) {
         businessId: business.id,
         staffId,
         serviceId,
-        clientName,
-        clientPhone,
-        clientEmail: clientEmail || null,
+        clientName: String(clientName).trim(),
+        clientPhone: String(clientPhone ?? "").trim() || "",
+        clientEmail: clientEmail != null && String(clientEmail).trim() ? String(clientEmail).trim() : null,
         clientIp: ip || null,
         date: appointmentDate,
         status: "confirmed",
@@ -209,10 +214,10 @@ export async function POST(req: NextRequest) {
       (global as any).io.to(`display-${displayRoomSlug}`).emit("new-appointment", appointment);
     }
 
+    const staffMember = await prisma.staff.findUnique({ where: { id: staffId } });
+    const serviceMember = await prisma.service.findUnique({ where: { id: serviceId } });
+    const bookingLink = await buildPublicBookingAbsUrl(prisma, business);
     try {
-      const staffMember = await prisma.staff.findUnique({ where: { id: staffId } });
-      const serviceMember = await prisma.service.findUnique({ where: { id: serviceId } });
-      const bookingLink = await buildPublicBookingAbsUrl(prisma, business);
       await notifyClientBookingConfirmed({
         source: kioskOk ? "walk_in" : "web",
         clientEmail: appointment.clientEmail,
@@ -229,6 +234,25 @@ export async function POST(req: NextRequest) {
       });
     } catch (notifyErr) {
       console.error("Client booking notify error:", notifyErr);
+    }
+    try {
+      if (staffMember) {
+        let price = serviceMember?.price ?? 0;
+        const p = await effectiveServicePrice(prisma, serviceId, business.id);
+        if (p != null) price = p;
+        await notifyStaffAppointmentConfirmed({
+          staffEmail: staffMember.email,
+          staffPhone: staffMember.phone,
+          staffName: staffMember.name,
+          businessName: business.name,
+          clientName: appointment.clientName,
+          serviceName: serviceMember?.name || "Service",
+          price,
+          appointmentAt: appointmentDate,
+        });
+      }
+    } catch (staffNotifyErr) {
+      console.error("Staff booking notify error:", staffNotifyErr);
     }
 
     return NextResponse.json({ success: true, appointmentId: appointment.id });

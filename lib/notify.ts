@@ -1,9 +1,94 @@
 import { Resend } from "resend";
+import { DateTime } from "luxon";
 import { sendSMS, normalizePhoneForSms } from "./sms";
 import { sendBookingConfirmation } from "@/lib/email/send";
 import { resolveGoogleMapsDirectionsUrl } from "@/lib/google-maps-link";
+import { BUSINESS_TIMEZONE } from "@/lib/business-timezone";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
+
+function escapeHtml(s: string): string {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function formatStaffAppointmentWhen(date: Date): string {
+  return DateTime.fromJSDate(date).setZone(BUSINESS_TIMEZONE).toLocaleString(DateTime.DATETIME_MED_WITH_WEEKDAY);
+}
+
+function formatPriceUsd(amount: number): string {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(amount);
+}
+
+/**
+ * When an appointment is confirmed: notify assigned staff by email and/or SMS if saved on their Staff row.
+ * Omits client contact info — only client name, service, price, and time.
+ */
+export async function notifyStaffAppointmentConfirmed({
+  staffEmail,
+  staffPhone,
+  staffName,
+  businessName,
+  clientName,
+  serviceName,
+  price,
+  appointmentAt,
+}: {
+  staffEmail?: string | null;
+  staffPhone?: string | null;
+  staffName: string;
+  businessName: string;
+  clientName: string;
+  serviceName: string;
+  price: number;
+  appointmentAt: Date;
+}) {
+  const emailTo = (staffEmail && String(staffEmail).trim()) || "";
+  const whenStr = formatStaffAppointmentWhen(appointmentAt);
+  const priceStr = formatPriceUsd(price);
+  const safeBiz = escapeHtml(businessName);
+  const safeStaff = escapeHtml(staffName);
+  const safeClient = escapeHtml(clientName);
+  const safeService = escapeHtml(serviceName);
+
+  if (emailTo && process.env.RESEND_API_KEY) {
+    try {
+      await resend.emails.send({
+        from: "Callendra <callendra@voxproai.com>",
+        to: emailTo,
+        subject: `New appointment — ${businessName.replace(/[\r\n]/g, " ").slice(0, 120)}`,
+        html: `
+      <div style="font-family: sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; background: #0a0a0a; color: #ffffff; border-radius: 12px;">
+        <p style="color: #9ca3af; margin: 0 0 8px 0;">Hi ${safeStaff},</p>
+        <h2 style="color: #facc15; margin: 0 0 16px 0; font-size: 18px;">Appointment confirmed</h2>
+        <p style="color: #d1d5db; margin: 0 0 20px 0;">${safeBiz}</p>
+        <div style="background: #1a1a1a; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+          <p style="margin: 0 0 8px 0;"><strong>Client</strong> (name only): ${safeClient}</p>
+          <p style="margin: 0 0 8px 0;"><strong>Service:</strong> ${safeService}</p>
+          <p style="margin: 0 0 8px 0;"><strong>Price:</strong> ${escapeHtml(priceStr)}</p>
+          <p style="margin: 0;"><strong>When:</strong> ${escapeHtml(whenStr)}</p>
+        </div>
+        <p style="color: #6b7280; font-size: 12px; margin: 0;">Callendra · staff notification (no client phone or email included)</p>
+      </div>`,
+      });
+    } catch (e) {
+      console.error("Staff appointment confirmation email error:", e);
+    }
+  }
+
+  const smsTo = normalizePhoneForSms(staffPhone);
+  if (smsTo) {
+    const smsBody = `Callendra: New appt at ${businessName.slice(0, 40)}${businessName.length > 40 ? "…" : ""}. Client: ${clientName.slice(0, 32)}${clientName.length > 32 ? "…" : ""}. ${serviceName.slice(0, 28)}${serviceName.length > 28 ? "…" : ""}. ${priceStr}. ${whenStr}`;
+    try {
+      await sendSMS(smsTo, smsBody.slice(0, 1500));
+    } catch (e) {
+      console.error("Staff appointment confirmation SMS error:", e);
+    }
+  }
+}
 
 /**
  * Client confirmation after booking: web/dashboard = email (if provided) + SMS (if phone).

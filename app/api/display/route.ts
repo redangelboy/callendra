@@ -5,6 +5,7 @@ import { loadLocationCatalog } from "@/lib/location-catalog";
 import { businessDayUtcRange, utcFromYmdAndTime } from "@/lib/business-timezone";
 import { staffBreakDateFromYmd } from "@/lib/staff-break-date";
 import { APPOINTMENT_ACTIVE_DAY_LIST_FILTER } from "@/lib/appointment-blocking-status";
+import { appointmentTotalDurationMin } from "@/lib/appointment-duration";
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL!
@@ -57,9 +58,14 @@ export async function GET(req: NextRequest) {
         date: { gte: startUTC, lte: endUTC },
         ...APPOINTMENT_ACTIVE_DAY_LIST_FILTER,
       },
-      include: { service: true, staff: true },
+      include: { service: true, staff: true, extras: { include: { service: true } } },
       orderBy: { date: "asc" }
     });
+
+    const appointmentsOut = appointments.map((a) => ({
+      ...a,
+      totalDurationMin: appointmentTotalDurationMin(a),
+    }));
 
     const dayKey = staffBreakDateFromYmd(todayChicago);
     const staffBreaksRaw = await prisma.staffBreak.findMany({
@@ -77,7 +83,7 @@ export async function GET(req: NextRequest) {
       staff: b.staff,
     }));
 
-    return NextResponse.json({ business, appointments, staffBreaks });
+    return NextResponse.json({ business, appointments: appointmentsOut, staffBreaks });
   } catch (error) {
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }

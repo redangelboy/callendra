@@ -8,6 +8,12 @@ type AptRow = {
   date: string;
   status: string;
   cancelReason?: string | null;
+  totalPrice?: number | null;
+  totalDurationMin?: number | null;
+  extras?: Array<{
+    customLabel?: string | null;
+    service?: { name?: string | null } | null;
+  }> | null;
   clientName: string;
   staff?: { name?: string | null } | null;
   service?: { name?: string | null; price?: number | null; duration?: number | null } | null;
@@ -48,7 +54,14 @@ function cancellationLabel(status: string) {
 
 function revenueForRow(apt: AptRow): number {
   if (apt.status === "cancelled") return 0;
-  return apt.service?.price ?? 0;
+  return Number(apt.totalPrice ?? apt.service?.price ?? 0);
+}
+
+function serviceSummary(apt: AptRow): string {
+  const extras = (apt.extras ?? [])
+    .map((e) => e.service?.name ?? e.customLabel ?? "")
+    .filter((x) => !!x);
+  return [apt.service?.name ?? "—", ...extras].join(" + ");
 }
 
 export default function ReportsPage() {
@@ -310,13 +323,15 @@ export default function ReportsPage() {
                                 {formatTime(apt.date)}
                               </td>
                               <td className="px-4 py-3 text-[var(--callendra-text-secondary)] whitespace-nowrap">
-                                {formatDurationMin(apt.service?.duration)}
+                                {formatDurationMin(apt.totalDurationMin ?? apt.service?.duration)}
                               </td>
                               <td className="px-4 py-3 font-medium text-[var(--callendra-text-primary)] max-w-[200px]">
                                 <span className="truncate block">{apt.clientName}</span>
                               </td>
                               <td className="px-4 py-3 text-[var(--callendra-text-secondary)] max-w-[220px]">
-                                <span className="truncate block">{apt.service?.name ?? "—"}</span>
+                                <span className="truncate block" title={serviceSummary(apt)}>
+                                  {serviceSummary(apt)}
+                                </span>
                               </td>
                               <td className="px-4 py-3 text-[var(--callendra-text-secondary)] whitespace-nowrap">
                                 {apt.staff?.name ?? "—"}
@@ -332,9 +347,9 @@ export default function ReportsPage() {
                               </td>
                               <td className="px-4 py-3 text-right text-[var(--callendra-accent)] whitespace-nowrap">
                                 {apt.status === "cancelled" ? (
-                                  <span className="line-through opacity-70">${apt.service?.price ?? 0}</span>
+                                  <span className="line-through opacity-70">${Number(apt.totalPrice ?? apt.service?.price ?? 0)}</span>
                                 ) : (
-                                  `$${apt.service?.price ?? 0}`
+                                  `$${revenueForRow(apt)}`
                                 )}
                               </td>
                             </tr>

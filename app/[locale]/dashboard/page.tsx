@@ -6,6 +6,7 @@ import { bookingPathForBusiness, walkInPathForBusiness } from "@/lib/booking-pat
 import { isMainBusinessFromPayload } from "@/lib/main-business";
 import { BUSINESS_TIMEZONE } from "@/lib/business-timezone";
 import { DashboardNewAppointmentModal } from "@/components/dashboard-new-appointment-modal";
+import { DashboardAppointmentExtraModal } from "@/components/dashboard-appointment-extra-modal";
 
 const TIME_OPTIONS_15 = (() => {
   const out: string[] = [];
@@ -24,6 +25,18 @@ function breakStartMillis(ymd: string, startTime: string): number {
     { year: y, month: mo, day: d, hour: h, minute: min },
     { zone: BUSINESS_TIMEZONE }
   ).toMillis();
+}
+
+function appointmentExtrasSummary(apt: any): string {
+  const parts = [
+    apt?.service?.name,
+    ...(apt?.extras ?? []).map((e: any) => e?.service?.name ?? e?.customLabel ?? "Extra"),
+  ].filter(Boolean);
+  return parts.join(" · ");
+}
+
+function appointmentSchedulePrice(apt: any): number {
+  return Number(apt?.totalPrice ?? apt?.service?.price ?? 0);
 }
 
 type ScheduleRow =
@@ -68,6 +81,7 @@ export default function DashboardPage() {
   const [showBreakModal, setShowBreakModal] = useState(false);
   const [breakSaving, setBreakSaving] = useState(false);
   const [breakError, setBreakError] = useState("");
+  const [extraModalApt, setExtraModalApt] = useState<any>(null);
   const [breakForm, setBreakForm] = useState({
     staffId: "",
     breakBusinessId: "",
@@ -343,6 +357,7 @@ export default function DashboardPage() {
     { label: "Locations", icon: "🏪", href: "/en/dashboard/locations" },
     { label: "Business profile", icon: "⚙️", href: "/en/dashboard/profile" },
     { label: "Consolidated reports", icon: "📊", href: reportsHref },
+    { label: "Time Clock", icon: "🕒", href: "/en/dashboard/timeclock" },
     { label: "Team access", icon: "🔑", href: "#team" },
   ];
 
@@ -353,6 +368,7 @@ export default function DashboardPage() {
     { label: "Walk-in (iPad)", icon: "🚶", href: `/en/walk-in/${session.slug}` },
     { label: "Assigned staff", icon: "👥", href: "/en/dashboard/staff" },
     { label: "Assigned services", icon: "💈", href: "/en/dashboard/services" },
+    { label: "Time Clock", icon: "🕒", href: "/en/dashboard/timeclock" },
     { label: "Business profile", icon: "⚙️", href: "/en/dashboard/profile" },
     ...(isOwner ? [{ label: "Consolidated reports", icon: "📊", href: reportsHref }] as const : []),
   ]);
@@ -367,6 +383,7 @@ export default function DashboardPage() {
     { label: "Today's bookings", icon: "📅", href: "#today" },
     { label: "Business profile", icon: "⚙️", href: "/en/dashboard/profile" },
     { label: "Locations", icon: "🏪", href: "/en/dashboard/locations" },
+    { label: "Time Clock", icon: "🕒", href: "/en/dashboard/timeclock" },
     { label: "Team access", icon: "🔑", href: "#team" },
     ...(isOwner ? [{ label: "Consolidated reports", icon: "📊", href: reportsHref }] : []),
   ]);
@@ -663,7 +680,7 @@ export default function DashboardPage() {
                         <div>
                           <div className="font-semibold">{row.apt.clientName}</div>
                           <div className="text-sm text-[var(--callendra-text-secondary)]">
-                            {row.apt.service?.name} · with {row.apt.staff?.name}
+                            {appointmentExtrasSummary(row.apt)} · with {row.apt.staff?.name}
                           </div>
                           <div className="text-xs text-[var(--callendra-text-secondary)] opacity-80 mt-0.5">
                             {row.apt.business?.name}
@@ -673,10 +690,19 @@ export default function DashboardPage() {
                           )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 flex-wrap justify-end">
                         <span className="text-sm font-semibold text-[var(--callendra-accent)]">
-                          ${row.apt.service?.price}
+                          ${appointmentSchedulePrice(row.apt).toFixed(0)}
                         </span>
+                        {canManageStaffBreaks ? (
+                          <button
+                            type="button"
+                            onClick={() => setExtraModalApt(row.apt)}
+                            className="text-xs text-[var(--callendra-accent)] hover:opacity-90 transition border border-[var(--callendra-accent)]/40 px-3 py-1 rounded-full"
+                          >
+                            Add extra
+                          </button>
+                        ) : null}
                         <button
                           type="button"
                           onClick={() => handleCancel(row.apt.id)}
@@ -778,17 +804,26 @@ export default function DashboardPage() {
                         <div>
                           <div className="font-semibold">{row.apt.clientName}</div>
                           <div className="text-sm text-[var(--callendra-text-secondary)]">
-                            {row.apt.service?.name} · with {row.apt.staff?.name}
+                            {appointmentExtrasSummary(row.apt)} · with {row.apt.staff?.name}
                           </div>
                           {row.apt.status === "cancel_requested" && (
                             <div className="text-xs text-yellow-400 mt-0.5">⏳ Cancel requested</div>
                           )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 flex-wrap justify-end">
                         <span className="text-sm font-semibold text-[var(--callendra-accent)]">
-                          ${row.apt.service?.price}
+                          ${appointmentSchedulePrice(row.apt).toFixed(0)}
                         </span>
+                        {canManageStaffBreaks ? (
+                          <button
+                            type="button"
+                            onClick={() => setExtraModalApt(row.apt)}
+                            className="text-xs text-[var(--callendra-accent)] hover:opacity-90 transition border border-[var(--callendra-accent)]/40 px-3 py-1 rounded-full"
+                          >
+                            Add extra
+                          </button>
+                        ) : null}
                         <button
                           type="button"
                           onClick={() => handleEdit(row.apt)}
@@ -1142,6 +1177,21 @@ export default function DashboardPage() {
         staffList={staffList}
         serviceList={serviceList}
         onCreated={fetchData}
+      />
+
+      <DashboardAppointmentExtraModal
+        open={!!extraModalApt}
+        appointment={
+          extraModalApt
+            ? {
+                id: extraModalApt.id,
+                businessId: extraModalApt.businessId,
+                clientName: extraModalApt.clientName,
+              }
+            : null
+        }
+        onClose={() => setExtraModalApt(null)}
+        onSaved={fetchData}
       />
 
       {showBreakModal && (

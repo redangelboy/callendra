@@ -3,6 +3,7 @@ import type { CSSProperties } from "react";
 import { Suspense, useState, useEffect, useCallback } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { StaffAvatar } from "@/components/staff-avatar";
+import { appointmentTotalDurationMin } from "@/lib/appointment-duration";
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -69,7 +70,7 @@ function StaffColumn({
               if (item.kind === "appointment") {
                 const apt = item.apt;
                 const aptTime = new Date(apt.date);
-                const duration = apt.service?.duration || 30;
+                const duration = apt.totalDurationMin ?? appointmentTotalDurationMin(apt);
                 const aptEnd = new Date(aptTime.getTime() + duration * 60 * 1000);
                 const isInProgress = aptTime <= now && aptEnd > now;
                 const nextIdx = items.findIndex((i) => itemStartMs(i) >= now.getTime());
@@ -95,7 +96,15 @@ function StaffColumn({
                             {apt.clientName}
                           </div>
                           <div className="text-[10px] sm:text-xs text-[var(--callendra-text-secondary)] break-words line-clamp-2 mt-0.5">
-                            {apt.service?.name}
+                            {[
+                              apt.service?.name,
+                              ...(apt.extras ?? []).map(
+                                (e: { service?: { name?: string } | null; customLabel?: string | null }) =>
+                                  e.service?.name ?? e.customLabel ?? "Extra"
+                              ),
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
                           </div>
                         </div>
                         <div className="shrink-0 flex flex-col items-end gap-0.5 text-right">
@@ -263,7 +272,7 @@ function DisplayPageInner() {
       .filter((a: any) => {
         if (a.staffId !== s.id) return false;
         const start = new Date(a.date);
-        const duration = a.service?.duration || 30;
+        const duration = a.totalDurationMin ?? appointmentTotalDurationMin(a);
         const end = new Date(start.getTime() + duration * 60 * 1000);
         return end > now;
       })

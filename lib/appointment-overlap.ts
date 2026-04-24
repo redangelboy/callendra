@@ -3,6 +3,7 @@ import type { PrismaClient, StaffBreak } from "@prisma/client";
 import { BUSINESS_TIMEZONE, utcFromYmdAndTime } from "@/lib/business-timezone";
 import { staffBreakDateFromYmd } from "@/lib/staff-break-date";
 import { APPOINTMENT_BLOCKING_STATUS_FILTER } from "@/lib/appointment-blocking-status";
+import { appointmentTotalDurationMin } from "@/lib/appointment-duration";
 
 /**
  * Detecta si ya existe una cita (no cancelada) del mismo staff que se solape
@@ -29,14 +30,14 @@ export async function findStaffOverlappingAppointment(
         lte: new Date(end.getTime() + 36 * 60 * 60 * 1000),
       },
     },
-    include: { service: true },
+    include: { service: true, extras: true },
   });
 
   const s0 = start.getTime();
   const e0 = end.getTime();
 
   for (const apt of candidates) {
-    const durMin = apt.service?.duration ?? 30;
+    const durMin = appointmentTotalDurationMin(apt);
     const aptStart = apt.date.getTime();
     const aptEnd = aptStart + durMin * 60_000;
     if (aptStart < e0 && aptEnd > s0) {

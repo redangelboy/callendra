@@ -2,6 +2,7 @@ import { DateTime } from "luxon";
 import type { PrismaClient } from "@prisma/client";
 import { BUSINESS_TIMEZONE, businessDayUtcRange, utcFromYmdAndTime } from "@/lib/business-timezone";
 import { findStaffIntervalConflict } from "@/lib/appointment-overlap";
+import { appointmentTotalDurationMin } from "@/lib/appointment-duration";
 
 /** Next 5-minute wall-clock instant in business timezone, on or after `from`. */
 export function roundUpToNextFiveMinuteUtc(from: Date): Date {
@@ -30,10 +31,10 @@ export async function suggestEarlierStartForAppointment(
 ): Promise<Date | null> {
   const apt = await prisma.appointment.findUnique({
     where: { id: params.appointmentId },
-    include: { service: true },
+    include: { service: true, extras: true },
   });
   if (!apt) return null;
-  const durMin = apt.service?.duration ?? 30;
+  const durMin = appointmentTotalDurationMin(apt);
 
   let candidate = roundUpToNextFiveMinuteUtc(params.from);
   const ymd = DateTime.fromJSDate(candidate, { zone: BUSINESS_TIMEZONE }).toFormat("yyyy-LL-dd");

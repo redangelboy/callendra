@@ -27,6 +27,7 @@ export async function GET(req: NextRequest) {
   const start_url = safeStartUrl(param);
 
   const isStaffDay = start_url.includes("/staff-day");
+  const isTimeClock = start_url.includes("/timeclock/");
   const body = {
     ...BASE_MANIFEST,
     start_url,
@@ -36,6 +37,12 @@ export async function GET(req: NextRequest) {
       ? {
           name: "Callendra · Staff",
           short_name: "Staff",
+        }
+      : {}),
+    ...(isTimeClock
+      ? {
+          name: "Callendra · Time Clock",
+          short_name: "Time Clock",
         }
       : {}),
   };

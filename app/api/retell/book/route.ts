@@ -6,7 +6,8 @@ import { loadLocationCatalog } from "@/lib/location-catalog";
 import { utcFromYmdAndTime, BUSINESS_TIMEZONE } from "@/lib/business-timezone";
 import { findStaffIntervalConflict } from "@/lib/appointment-overlap";
 import { buildPublicBookingAbsUrl } from "@/lib/booking-public-url";
-import { notifyClientBookingConfirmed } from "@/lib/notify";
+import { notifyClientBookingConfirmed, notifyStaffAppointmentConfirmed } from "@/lib/notify";
+import { effectiveServicePrice } from "@/lib/location-catalog";
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL!,
@@ -422,8 +423,8 @@ export async function POST(req: NextRequest) {
       console.error("Emit error:", emitError);
     }
 
+    const bookingLink = await buildPublicBookingAbsUrl(prisma, business);
     try {
-      const bookingLink = await buildPublicBookingAbsUrl(prisma, business);
       await notifyClientBookingConfirmed({
         source: "phone",
         clientPhone: bookPhone,
@@ -440,6 +441,23 @@ export async function POST(req: NextRequest) {
       });
     } catch (notifyErr) {
       console.error("Retell client SMS notify error:", notifyErr);
+    }
+    try {
+      let price = selectedService.price ?? 0;
+      const ep = await effectiveServicePrice(prisma, selectedService.id, business.id);
+      if (ep != null) price = ep;
+      await notifyStaffAppointmentConfirmed({
+        staffEmail: selectedStaff.email,
+        staffPhone: selectedStaff.phone,
+        staffName: selectedStaff.name,
+        businessName: business.name,
+        clientName,
+        serviceName: selectedService.name,
+        price,
+        appointmentAt: appointmentDate,
+      });
+    } catch (staffNotifyErr) {
+      console.error("Retell staff notify error:", staffNotifyErr);
     }
 
     return NextResponse.json({

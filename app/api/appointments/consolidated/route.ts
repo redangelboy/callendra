@@ -3,6 +3,7 @@ import { Prisma, PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { getMainBusinessIdForOwner } from "@/lib/main-business";
 import { effectiveServicePrice } from "@/lib/location-catalog";
+import { appointmentTotalDurationMin } from "@/lib/appointment-duration";
 import { businessDayUtcRange } from "@/lib/business-timezone";
 
 const adapter = new PrismaPg({
@@ -131,7 +132,7 @@ export async function GET(req: NextRequest) {
         ...(staffId ? { staffId } : {}),
         ...statusWhere,
       },
-      include: { staff: true, service: true, business: true },
+      include: { staff: true, service: true, business: true, extras: { include: { service: true } } },
       orderBy: [{ date: "asc" }],
     });
 
@@ -141,9 +142,12 @@ export async function GET(req: NextRequest) {
           ? await effectiveServicePrice(prisma, apt.serviceId, apt.businessId)
           : null;
         const effectivePrice = p ?? apt.service?.price ?? 0;
+        const extrasSum = (apt.extras ?? []).reduce((s, e) => s + e.linePrice, 0);
         return {
           ...apt,
           service: apt.service ? { ...apt.service, price: effectivePrice } : apt.service,
+          totalPrice: effectivePrice + extrasSum,
+          totalDurationMin: appointmentTotalDurationMin(apt),
         };
       })
     );

@@ -5,8 +5,10 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { BUSINESS_TIMEZONE, businessDayUtcRange, utcFromYmdAndTime } from "@/lib/business-timezone";
 import { APPOINTMENT_ACTIVE_DAY_LIST_FILTER, APPOINTMENT_BLOCKING_STATUS_FILTER } from "@/lib/appointment-blocking-status";
 import { suggestEarlierStartForAppointment } from "@/lib/staff-day-suggest";
+import { appointmentTotalDurationMin } from "@/lib/appointment-duration";
 import { findStaffIntervalConflict } from "@/lib/appointment-overlap";
 import { DEFAULT_THEME_ID, isValidThemeId } from "@/lib/callendra-themes";
+import { workBreakStateFromOrderedTypes } from "@/lib/clock-session";
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL!,
@@ -57,21 +59,37 @@ export async function GET(req: NextRequest) {
     const staff = await staffFromToken(token);
     if (!staff) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-    const locationIds = staff.staffAssignments.map((a) => a.businessId);
-    if (locationIds.length === 0) {
-      const themePreset = await resolveThemePreset(staff.businessId);
-      const { brandName, locationName } = await headerLabelsForBusiness(staff.businessId);
-      return NextResponse.json({
-        staff: { id: staff.id, name: staff.name, photo: staff.photo },
-        brandName,
-        locationName,
-        themePreset,
-        appointments: [],
-      });
-    }
-
     const ymd = DateTime.now().setZone(BUSINESS_TIMEZONE).toFormat("yyyy-LL-dd");
     const { start: dayStart, end: dayEnd } = businessDayUtcRange(ymd);
+    const mainBusinessId = staff.businessId;
+    const assignmentBusinessIds = [...new Set(staff.staffAssignments.map((a) => a.businessId))];
+    /**
+     * New staff get an automatic StaffAssignment to the main business row; branch checkboxes only list child
+     * locations. Without filtering, clock UI saw two "locations" (main + Princeton) even when only one branch
+     * was toggled — treat main as org anchor, clock + open state only on real branch assignments.
+     */
+    const branchAssignmentIds = assignmentBusinessIds.filter((id) => id !== mainBusinessId);
+    const clockBusinessIds = branchAssignmentIds.length > 0 ? branchAssignmentIds : [mainBusinessId];
+    const locationIds =
+      assignmentBusinessIds.length > 0 ? assignmentBusinessIds : [mainBusinessId];
+    const clockRows = await prisma.timeEntry.findMany({
+      where: {
+        staffId: staff.id,
+        businessId: { in: clockBusinessIds },
+        timestamp: { gte: dayStart, lte: dayEnd },
+      },
+      orderBy: { timestamp: "asc" },
+      select: { type: true, timestamp: true, businessId: true },
+    });
+    const clockToday = clockRows.map((r) => ({
+      type: r.type,
+      timestamp: r.timestamp.toISOString(),
+    }));
+    const clockSessionByBusinessId: Record<string, { workOpen: boolean; breakOpen: boolean }> = {};
+    for (const bid of clockBusinessIds) {
+      const types = clockRows.filter((r) => r.businessId === bid).map((r) => ({ type: r.type }));
+      clockSessionByBusinessId[bid] = workBreakStateFromOrderedTypes(types);
+    }
 
     const appointmentsRaw = await prisma.appointment.findMany({
       where: {
@@ -82,6 +100,7 @@ export async function GET(req: NextRequest) {
       },
       include: {
         service: true,
+        extras: true,
       },
       orderBy: { date: "asc" },
     });
@@ -95,7 +114,7 @@ export async function GET(req: NextRequest) {
       date: a.date.toISOString(),
       clientName: a.clientName,
       service: a.service
-        ? { name: a.service.name, duration: a.service.duration }
+        ? { name: a.service.name, duration: appointmentTotalDurationMin(a) }
         : null,
     }));
 
@@ -105,6 +124,8 @@ export async function GET(req: NextRequest) {
       locationName,
       themePreset,
       appointments,
+      clockToday,
+      clockSessionByBusinessId,
     });
   } catch (e) {
     console.error("staff-day GET", e);
@@ -146,7 +167,7 @@ export async function POST(req: NextRequest) {
           businessId: { in: locationIds },
           ...APPOINTMENT_ACTIVE_DAY_LIST_FILTER,
         },
-        include: { service: true },
+        include: { service: true, extras: true },
       });
       if (!next) {
         return NextResponse.json({ error: "Appointment not found" }, { status: 404 });
@@ -163,7 +184,7 @@ export async function POST(req: NextRequest) {
       const sYmd = DateTime.fromJSDate(suggested, { zone: BUSINESS_TIMEZONE }).toFormat("yyyy-LL-dd");
       const sHhmm = DateTime.fromJSDate(suggested, { zone: BUSINESS_TIMEZONE }).toFormat("HH:mm");
       const newDate = utcFromYmdAndTime(sYmd, sHhmm);
-      const durMin = next.service?.duration ?? 30;
+      const durMin = appointmentTotalDurationMin(next);
       const endAt = new Date(newDate.getTime() + durMin * 60_000);
       const conflict = await findStaffIntervalConflict(prisma, {
         staffId: staff.id,
@@ -189,14 +210,14 @@ export async function POST(req: NextRequest) {
         businessId: { in: locationIds },
         ...APPOINTMENT_BLOCKING_STATUS_FILTER,
       },
-      include: { service: true },
+      include: { service: true, extras: true },
     });
     if (!existing) {
       return NextResponse.json({ error: "Appointment not found or not allowed" }, { status: 404 });
     }
 
     const now = new Date();
-    const durMin = existing.service?.duration ?? 30;
+    const durMin = appointmentTotalDurationMin(existing);
     const endAt = new Date(existing.date.getTime() + durMin * 60_000);
     const inProgress = existing.date <= now && endAt > now;
     if (!inProgress) {

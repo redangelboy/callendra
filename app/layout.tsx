@@ -13,7 +13,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const path = h.get("x-pathname") ?? "";
   const pathsearch = h.get("x-pathsearch") ?? path;
   const manifest =
-    path.includes("/walk-in/") || path.includes("/display/")
+    path.includes("/walk-in/") || path.includes("/display/") || path.includes("/timeclock/")
       ? `/manifest?startUrl=${encodeURIComponent(pathsearch)}`
       : "/manifest.json";
 
