@@ -20,7 +20,7 @@ export default function StaffPage() {
   const [editForm, setEditForm] = useState({ name: "", phone: "", email: "" });
   const [editLoading, setEditLoading] = useState(false);
   const [regenTokenId, setRegenTokenId] = useState<string | null>(null);
-  const [copiedBookingStaffId, setCopiedBookingStaffId] = useState<string | null>(null);
+  const [copiedBookingKey, setCopiedBookingKey] = useState<string | null>(null);
   const [copiedStaffDayStaffId, setCopiedStaffDayStaffId] = useState<string | null>(null);
 
   const staffDayUrl = (token: string | null | undefined) => {
@@ -181,36 +181,41 @@ export default function StaffPage() {
     }
   };
 
-  const bookingUrlForStaff = (staffRow: any): string => {
-    if (!business || typeof window === "undefined") return "";
+  const bookingTargetsForStaff = (staffRow: any): Array<{ businessId: string; locationName: string; url: string }> => {
+    if (!business || typeof window === "undefined") return [];
     const all = Array.isArray(locations) ? locations : [];
     const parent = (business.parentSlug ?? business.slug ?? "").trim();
     const sameParent = all.filter((l: any) => ((l.parentSlug ?? l.slug ?? "").trim() === parent));
     const locationCount = sameParent.length || 1;
-
-    let targetBiz = business;
+    const assigned: string[] = Array.isArray(staffRow?.assignedLocationIds) ? staffRow.assignedLocationIds : [];
+    let targets: any[] = [];
     if (isMain) {
-      const assigned: string[] = Array.isArray(staffRow?.assignedLocationIds) ? staffRow.assignedLocationIds : [];
-      const preferredAssigned =
-        assigned.find((id) => sameParent.some((l: any) => l.id === id)) ??
-        sameParent.find((l: any) => {
+      targets = sameParent.filter((l: any) => assigned.includes(l.id));
+      if (targets.length === 0) {
+        targets = sameParent.filter((l: any) => {
           const ls = String(l?.locationSlug ?? "").trim();
           return ls !== "" && ls !== "main";
-        })?.id;
-      if (preferredAssigned) {
-        const hit = sameParent.find((l: any) => l.id === preferredAssigned);
-        if (hit) targetBiz = hit;
+        });
       }
+    } else {
+      targets = [business];
     }
+    if (targets.length === 0) return [];
 
-    const path = bookingPathForBusiness(
-      targetBiz.parentSlug,
-      targetBiz.slug,
-      targetBiz.locationSlug,
-      locationCount
-    );
     const origin = (process.env.NEXT_PUBLIC_URL || window.location.origin).replace(/\/$/, "");
-    return `${origin}/${locale}${path}?staffId=${encodeURIComponent(staffRow.id)}`;
+    return targets.map((targetBiz: any) => {
+      const path = bookingPathForBusiness(
+        targetBiz.parentSlug,
+        targetBiz.slug,
+        targetBiz.locationSlug,
+        locationCount
+      );
+      return {
+        businessId: targetBiz.id,
+        locationName: targetBiz.name ?? "Location",
+        url: `${origin}/${locale}${path}?staffId=${encodeURIComponent(staffRow.id)}`,
+      };
+    });
   };
 
   return (
@@ -303,33 +308,54 @@ export default function StaffPage() {
                 {isOwner && (
                   <div className="mt-4 pt-4 border-t border-[var(--callendra-border)]">
                     <p className="text-xs font-medium text-[var(--callendra-text-primary)] mb-1">📅 Booking link</p>
-                    <p className="text-xs text-[var(--callendra-text-secondary)] opacity-90 mb-2">
-                      Opens booking with this barber preselected.
-                    </p>
-                    <div className="text-[11px] font-mono break-all rounded-lg border border-[var(--callendra-border)] bg-[color-mix(in_srgb,var(--callendra-text-primary)_5%,var(--callendra-bg))] px-2 py-2 mb-2">
-                      {bookingUrlForStaff(s) || `/${locale}/book/...?...staffId=...`}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        const url = bookingUrlForStaff(s);
-                        if (!url) return;
-                        try {
-                          await navigator.clipboard.writeText(url);
-                          setCopiedBookingStaffId(s.id);
-                          setTimeout(() => setCopiedBookingStaffId((prev) => (prev === s.id ? null : prev)), 1500);
-                        } catch {
-                          setError("Could not copy booking link");
-                        }
-                      }}
-                      className="text-xs border border-[var(--callendra-border)] px-3 py-1.5 rounded-full hover:opacity-90 transition mb-4"
-                    >
-                      {copiedBookingStaffId === s.id ? "Copied!" : "Personal Booking Link"}
-                    </button>
+                    {(() => {
+                      const targets = bookingTargetsForStaff(s);
+                      if (targets.length === 0) {
+                        return (
+                          <p className="text-xs text-[var(--callendra-text-secondary)] opacity-90 mb-4">
+                            Assign this barber to at least one branch to generate a booking link.
+                          </p>
+                        );
+                      }
+                      return (
+                        <div className="mb-4 flex flex-col gap-2">
+                          {targets.map((t) => {
+                            const key = `${s.id}:${t.businessId}`;
+                            return (
+                              <div key={key} className="rounded-lg border border-[var(--callendra-border)] p-2">
+                                {isMain ? (
+                                  <div className="text-[11px] text-[var(--callendra-text-secondary)] opacity-85 mb-1">
+                                    {t.locationName}
+                                  </div>
+                                ) : null}
+                                <div className="text-[11px] font-mono break-all rounded-lg border border-[var(--callendra-border)] bg-[color-mix(in_srgb,var(--callendra-text-primary)_5%,var(--callendra-bg))] px-2 py-2 mb-2">
+                                  {t.url}
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    try {
+                                      await navigator.clipboard.writeText(t.url);
+                                      setCopiedBookingKey(key);
+                                      setTimeout(() => setCopiedBookingKey((prev) => (prev === key ? null : prev)), 1500);
+                                    } catch {
+                                      setError("Could not copy booking link");
+                                    }
+                                  }}
+                                  className="text-xs border border-[var(--callendra-border)] px-3 py-1.5 rounded-full hover:opacity-90 transition"
+                                >
+                                  {copiedBookingKey === key ? "Copied!" : "Personal Booking Link"}
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
 
                     <p className="text-xs font-medium text-[var(--callendra-text-primary)] mb-1 mt-1">📱 Personal day link</p>
                     <p className="text-xs text-[var(--callendra-text-secondary)] opacity-90 mb-2">
-                      No login. Barber sees only their appointments today, can finish the current one, and optionally pull the next client earlier.
+                      One personal link per barber (same across all locations). No login. Barber sees their day and can finish current appointments.
                     </p>
                     {s.staffDayViewToken ? (
                       <>
