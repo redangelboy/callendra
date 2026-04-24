@@ -51,6 +51,16 @@ export function DashboardNewAppointmentModal({
   const [form, setForm] = useState({ clientName: "", clientPhone: "", clientEmail: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [nextModalOpen, setNextModalOpen] = useState(false);
+  const [nextSearchingServiceId, setNextSearchingServiceId] = useState<string | null>(null);
+  const [nextResult, setNextResult] = useState<null | {
+    staffId: string;
+    staffName: string;
+    date: string;
+    time: string;
+    serviceId: string;
+  }>(null);
+  const [nextError, setNextError] = useState("");
   const [nowTick, setNowTick] = useState(Date.now());
 
   useEffect(() => {
@@ -63,6 +73,10 @@ export function DashboardNewAppointmentModal({
       setSlots([]);
       setForm({ clientName: "", clientPhone: "", clientEmail: "" });
       setError("");
+      setNextModalOpen(false);
+      setNextSearchingServiceId(null);
+      setNextResult(null);
+      setNextError("");
     }
   }, [open]);
 
@@ -145,6 +159,64 @@ export function DashboardNewAppointmentModal({
     }
   };
 
+  const handleNextAvailableSearch = async (service: ServiceRow) => {
+    if (!business) return;
+    setNextError("");
+    setNextResult(null);
+    setNextSearchingServiceId(service.id);
+    try {
+      const qs = availabilityBaseQuery(business);
+      qs.set("serviceId", service.id);
+      const res = await fetch(`/api/book/next-available?${qs.toString()}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not find availability");
+      if (!data.available) {
+        setNextError("No availability in the next 7 days");
+        return;
+      }
+      const result = {
+        staffId: String(data.staffId),
+        staffName: String(data.staffName ?? ""),
+        date: String(data.date),
+        time: String(data.time),
+        serviceId: service.id,
+      };
+      const todayBiz = DateTime.now().setZone(BUSINESS_TIMEZONE).toFormat("yyyy-LL-dd");
+      if (result.date === todayBiz) {
+        const staff = staffList.find((s) => s.id === result.staffId);
+        if (!staff) throw new Error("Staff not available");
+        setSelectedStaff(staff);
+        setSelectedService(service);
+        setSelectedDate(result.date);
+        setSelectedTime(result.time);
+        setStep(4);
+        setNextModalOpen(false);
+        return;
+      }
+      setNextResult(result);
+    } catch (e: unknown) {
+      setNextError(e instanceof Error ? e.message : "Error");
+    } finally {
+      setNextSearchingServiceId(null);
+    }
+  };
+
+  const confirmNextAvailableResult = () => {
+    if (!nextResult) return;
+    const staff = staffList.find((s) => s.id === nextResult.staffId);
+    const service = serviceList.find((s) => s.id === nextResult.serviceId);
+    if (!staff || !service) {
+      setNextError("Could not apply next available selection.");
+      return;
+    }
+    setSelectedStaff(staff);
+    setSelectedService(service);
+    setSelectedDate(nextResult.date);
+    setSelectedTime(nextResult.time);
+    setStep(4);
+    setNextModalOpen(false);
+  };
+
   if (!open || !business) return null;
 
   return (
@@ -207,6 +279,22 @@ export function DashboardNewAppointmentModal({
                   <span className="font-medium text-[var(--callendra-text-primary)]">{s.name}</span>
                 </button>
               ))}
+            </div>
+            <div className="mt-4 pt-4 border-t border-[var(--callendra-border)]">
+              <button
+                type="button"
+                onClick={() => {
+                  setNextError("");
+                  setNextResult(null);
+                  setNextModalOpen(true);
+                }}
+                className="w-full border border-dashed border-[var(--callendra-accent)]/60 rounded-2xl px-4 py-3 text-left hover:border-[var(--callendra-accent)] transition"
+              >
+                <div className="font-semibold text-[var(--callendra-accent)]">⚡ Next Available</div>
+                <div className="text-xs text-[var(--callendra-text-secondary)] mt-1">
+                  Let us find the first open slot for you
+                </div>
+              </button>
             </div>
           </div>
         )}
@@ -372,6 +460,75 @@ export function DashboardNewAppointmentModal({
           </div>
         )}
       </div>
+
+      {nextModalOpen ? (
+        <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-[var(--callendra-bg)] border border-[var(--callendra-border)] rounded-2xl p-5 max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold">Find next available</h3>
+              <button
+                type="button"
+                onClick={() => setNextModalOpen(false)}
+                className="text-sm text-[var(--callendra-text-secondary)] hover:opacity-90"
+              >
+                Close
+              </button>
+            </div>
+            {!nextResult ? (
+              <>
+                <p className="text-xs text-[var(--callendra-text-secondary)] mb-3">
+                  Choose a service and we will find the first open slot in the next 7 days.
+                </p>
+                <div className="flex flex-col gap-2">
+                  {serviceList.map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      disabled={!!nextSearchingServiceId}
+                      onClick={() => void handleNextAvailableSearch(s)}
+                      className="border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-left hover:border-[var(--callendra-accent)] transition disabled:opacity-60"
+                    >
+                      <div className="font-medium">{s.name}</div>
+                      <div className="text-xs text-[var(--callendra-text-secondary)] mt-1">
+                        ${s.price} · {s.duration ?? 30} min
+                      </div>
+                      {nextSearchingServiceId === s.id ? (
+                        <div className="text-xs text-[var(--callendra-accent)] mt-1 animate-pulse">Searching...</div>
+                      ) : null}
+                    </button>
+                  ))}
+                </div>
+                {nextError ? <p className="text-sm text-red-400 mt-3">{nextError}</p> : null}
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-[var(--callendra-text-secondary)] mb-4">
+                  Next available:{" "}
+                  <span className="text-[var(--callendra-text-primary)] font-medium">{nextResult.staffName}</span> on{" "}
+                  <span className="text-[var(--callendra-text-primary)] font-medium">{nextResult.date}</span> at{" "}
+                  <span className="text-[var(--callendra-accent)] font-semibold">{nextResult.time}</span> - Book this?
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={confirmNextAvailableResult}
+                    className="flex-1 ui-btn-primary py-3 rounded-xl text-sm font-semibold"
+                  >
+                    Book this
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNextResult(null)}
+                    className="flex-1 border border-[var(--callendra-border)] py-3 rounded-xl text-sm"
+                  >
+                    Try another service
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -2,12 +2,14 @@
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { isMainBusinessFromPayload } from "@/lib/main-business";
+import { bookingPathForBusiness } from "@/lib/booking-path";
 
 export default function StaffPage() {
   const params = useParams();
   const locale = typeof params?.locale === "string" ? params.locale : "en";
   const [staff, setStaff] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
+  const [business, setBusiness] = useState<any>(null);
   const [isMain, setIsMain] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
   const [name, setName] = useState("");
@@ -18,6 +20,8 @@ export default function StaffPage() {
   const [editForm, setEditForm] = useState({ name: "", phone: "", email: "" });
   const [editLoading, setEditLoading] = useState(false);
   const [regenTokenId, setRegenTokenId] = useState<string | null>(null);
+  const [copiedBookingStaffId, setCopiedBookingStaffId] = useState<string | null>(null);
+  const [copiedStaffDayStaffId, setCopiedStaffDayStaffId] = useState<string | null>(null);
 
   const staffDayUrl = (token: string | null | undefined) => {
     if (!token || typeof window === "undefined") return "";
@@ -68,7 +72,10 @@ export default function StaffPage() {
     setIsOwner(!!sessionData.ownerId);
     if (Array.isArray(staffData)) setStaff(staffData);
     if (Array.isArray(locData)) setLocations(locData);
-    if (biz?.id) setIsMain(isMainBusinessFromPayload(biz));
+    if (biz?.id) {
+      setBusiness(biz);
+      setIsMain(isMainBusinessFromPayload(biz));
+    }
   };
 
   useEffect(() => { fetchAll(); }, []);
@@ -174,6 +181,38 @@ export default function StaffPage() {
     }
   };
 
+  const bookingUrlForStaff = (staffRow: any): string => {
+    if (!business || typeof window === "undefined") return "";
+    const all = Array.isArray(locations) ? locations : [];
+    const parent = (business.parentSlug ?? business.slug ?? "").trim();
+    const sameParent = all.filter((l: any) => ((l.parentSlug ?? l.slug ?? "").trim() === parent));
+    const locationCount = sameParent.length || 1;
+
+    let targetBiz = business;
+    if (isMain) {
+      const assigned: string[] = Array.isArray(staffRow?.assignedLocationIds) ? staffRow.assignedLocationIds : [];
+      const preferredAssigned =
+        assigned.find((id) => sameParent.some((l: any) => l.id === id)) ??
+        sameParent.find((l: any) => {
+          const ls = String(l?.locationSlug ?? "").trim();
+          return ls !== "" && ls !== "main";
+        })?.id;
+      if (preferredAssigned) {
+        const hit = sameParent.find((l: any) => l.id === preferredAssigned);
+        if (hit) targetBiz = hit;
+      }
+    }
+
+    const path = bookingPathForBusiness(
+      targetBiz.parentSlug,
+      targetBiz.slug,
+      targetBiz.locationSlug,
+      locationCount
+    );
+    const origin = (process.env.NEXT_PUBLIC_URL || window.location.origin).replace(/\/$/, "");
+    return `${origin}/${locale}${path}?staffId=${encodeURIComponent(staffRow.id)}`;
+  };
+
   return (
     <main className="min-h-screen">
       <nav className="border-b border-[var(--callendra-border)] px-8 py-4 flex items-center gap-4">
@@ -263,7 +302,32 @@ export default function StaffPage() {
                 </div>
                 {isOwner && (
                   <div className="mt-4 pt-4 border-t border-[var(--callendra-border)]">
-                    <p className="text-xs font-medium text-[var(--callendra-text-primary)] mb-1">Personal day link (phone)</p>
+                    <p className="text-xs font-medium text-[var(--callendra-text-primary)] mb-1">📅 Booking link</p>
+                    <p className="text-xs text-[var(--callendra-text-secondary)] opacity-90 mb-2">
+                      Opens booking with this barber preselected.
+                    </p>
+                    <div className="text-[11px] font-mono break-all rounded-lg border border-[var(--callendra-border)] bg-[color-mix(in_srgb,var(--callendra-text-primary)_5%,var(--callendra-bg))] px-2 py-2 mb-2">
+                      {bookingUrlForStaff(s) || `/${locale}/book/...?...staffId=...`}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const url = bookingUrlForStaff(s);
+                        if (!url) return;
+                        try {
+                          await navigator.clipboard.writeText(url);
+                          setCopiedBookingStaffId(s.id);
+                          setTimeout(() => setCopiedBookingStaffId((prev) => (prev === s.id ? null : prev)), 1500);
+                        } catch {
+                          setError("Could not copy booking link");
+                        }
+                      }}
+                      className="text-xs border border-[var(--callendra-border)] px-3 py-1.5 rounded-full hover:opacity-90 transition mb-4"
+                    >
+                      {copiedBookingStaffId === s.id ? "Copied!" : "Personal Booking Link"}
+                    </button>
+
+                    <p className="text-xs font-medium text-[var(--callendra-text-primary)] mb-1 mt-1">📱 Personal day link</p>
                     <p className="text-xs text-[var(--callendra-text-secondary)] opacity-90 mb-2">
                       No login. Barber sees only their appointments today, can finish the current one, and optionally pull the next client earlier.
                     </p>
@@ -275,10 +339,16 @@ export default function StaffPage() {
                         <div className="flex flex-wrap gap-2">
                           <button
                             type="button"
-                            onClick={() => void copyStaffDayUrl(s.staffDayViewToken)}
+                            onClick={async () => {
+                              await copyStaffDayUrl(s.staffDayViewToken);
+                              setCopiedStaffDayStaffId(s.id);
+                              setTimeout(() => {
+                                setCopiedStaffDayStaffId((prev) => (prev === s.id ? null : prev));
+                              }, 1500);
+                            }}
                             className="text-xs border border-[var(--callendra-border)] px-3 py-1.5 rounded-full hover:opacity-90 transition"
                           >
-                            Copy link
+                            {copiedStaffDayStaffId === s.id ? "Copied!" : "Copy link"}
                           </button>
                           <button
                             type="button"

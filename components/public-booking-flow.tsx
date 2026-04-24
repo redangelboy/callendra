@@ -65,6 +65,7 @@ export function PublicBookingFlow({ walkInToken = null }: PublicBookingFlowProps
   const isWalkIn = !!walkInToken?.trim();
   const isEmbed = useEmbedMode();
   useEmbedHeightPostMessage(isEmbed);
+  const searchParams = useSearchParams();
 
   const { executeRecaptcha } = useGoogleReCaptcha();
   const params = useParams();
@@ -76,6 +77,7 @@ export function PublicBookingFlow({ walkInToken = null }: PublicBookingFlowProps
 
   const parentSlug = segments[0] ?? "";
   const locationSlug = segments[1];
+  const preselectedStaffId = searchParams.get("staffId")?.trim() ?? "";
 
   const bookQuery = useMemo(() => {
     const qs = new URLSearchParams();
@@ -97,6 +99,16 @@ export function PublicBookingFlow({ walkInToken = null }: PublicBookingFlowProps
   const [loading, setLoading] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [error, setError] = useState("");
+  const [nextModalOpen, setNextModalOpen] = useState(false);
+  const [nextSearchingServiceId, setNextSearchingServiceId] = useState<string | null>(null);
+  const [nextResult, setNextResult] = useState<null | {
+    staffId: string;
+    staffName: string;
+    date: string;
+    time: string;
+    serviceId: string;
+  }>(null);
+  const [nextError, setNextError] = useState("");
   const [nowTick, setNowTick] = useState(Date.now());
   /** Walk-in kiosk: seconds until auto-return to step 1 (null = not counting). */
   const [walkInAutoResetSeconds, setWalkInAutoResetSeconds] = useState<number | null>(null);
@@ -168,6 +180,14 @@ export function PublicBookingFlow({ walkInToken = null }: PublicBookingFlowProps
         setBusiness(data);
       });
   }, [bookQuery, parentSlug]);
+
+  useEffect(() => {
+    if (!preselectedStaffId || !business || selectedStaff) return;
+    const match = (business.staff ?? []).find((s: any) => s.id === preselectedStaffId);
+    if (!match) return;
+    setSelectedStaff(match);
+    setStep(2);
+  }, [preselectedStaffId, business, selectedStaff]);
 
   useEffect(() => {
     if (!parentSlug || !selectedStaff || !selectedService || !selectedDate) return;
@@ -253,6 +273,64 @@ export function PublicBookingFlow({ walkInToken = null }: PublicBookingFlowProps
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleNextAvailableSearch = async (service: any) => {
+    if (!service?.id) return;
+    setNextError("");
+    setNextResult(null);
+    setNextSearchingServiceId(service.id);
+    try {
+      const qs = new URLSearchParams(bookQuery);
+      qs.set("serviceId", service.id);
+      const res = await fetch(`/api/book/next-available?${qs.toString()}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not find availability");
+      if (!data.available) {
+        setNextError("No availability in the next 7 days");
+        return;
+      }
+      const result = {
+        staffId: String(data.staffId),
+        staffName: String(data.staffName ?? ""),
+        date: String(data.date),
+        time: String(data.time),
+        serviceId: String(service.id),
+      };
+      const todayBiz = DateTime.now().setZone(BUSINESS_TIMEZONE).toFormat("yyyy-LL-dd");
+      if (result.date === todayBiz) {
+        const staff = business?.staff?.find((s: any) => s.id === result.staffId);
+        if (!staff) throw new Error("Staff not available");
+        setSelectedStaff(staff);
+        setSelectedService(service);
+        setSelectedDate(result.date);
+        setSelectedTime(result.time);
+        setStep(4);
+        setNextModalOpen(false);
+        return;
+      }
+      setNextResult(result);
+    } catch (e: unknown) {
+      setNextError(e instanceof Error ? e.message : "Error");
+    } finally {
+      setNextSearchingServiceId(null);
+    }
+  };
+
+  const confirmNextAvailableResult = () => {
+    if (!nextResult) return;
+    const staff = business?.staff?.find((s: any) => s.id === nextResult.staffId);
+    const service = business?.services?.find((s: any) => s.id === nextResult.serviceId);
+    if (!staff || !service) {
+      setNextError("Could not apply next available selection.");
+      return;
+    }
+    setSelectedStaff(staff);
+    setSelectedService(service);
+    setSelectedDate(nextResult.date);
+    setSelectedTime(nextResult.time);
+    setStep(4);
+    setNextModalOpen(false);
   };
 
   const tagline = isWalkIn ? "Walk-in — book your appointment" : "Book an appointment";
@@ -381,6 +459,22 @@ export function PublicBookingFlow({ walkInToken = null }: PublicBookingFlowProps
                     <span className="font-medium">{s.name}</span>
                   </button>
                 ))}
+              </div>
+              <div className="mt-4 pt-4 border-t border-[var(--callendra-border)]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNextError("");
+                    setNextResult(null);
+                    setNextModalOpen(true);
+                  }}
+                  className="w-full border border-dashed border-[var(--callendra-accent)]/60 rounded-2xl px-4 py-3 text-left hover:border-[var(--callendra-accent)] transition"
+                >
+                  <div className="font-semibold text-[var(--callendra-accent)]">⚡ Next Available</div>
+                  <div className="text-xs text-[var(--callendra-text-secondary)] mt-1">
+                    Let us find the first open slot for you
+                  </div>
+                </button>
               </div>
             </div>
           )}
@@ -536,6 +630,78 @@ export function PublicBookingFlow({ walkInToken = null }: PublicBookingFlowProps
           )}
         </div>
       </div>
+
+      {nextModalOpen && (
+        <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-[var(--callendra-bg)] border border-[var(--callendra-border)] rounded-2xl p-5 max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold">Find next available</h3>
+              <button
+                type="button"
+                onClick={() => setNextModalOpen(false)}
+                className="text-sm text-[var(--callendra-text-secondary)] hover:opacity-90"
+              >
+                Close
+              </button>
+            </div>
+
+            {!nextResult ? (
+              <>
+                <p className="text-xs text-[var(--callendra-text-secondary)] mb-3">
+                  Choose a service and we will find the first open slot in the next 7 days.
+                </p>
+                <div className="flex flex-col gap-2">
+                  {(business?.services ?? []).map((s: any) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      disabled={!!nextSearchingServiceId}
+                      onClick={() => void handleNextAvailableSearch(s)}
+                      className="border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-left hover:border-[var(--callendra-accent)] transition disabled:opacity-60"
+                    >
+                      <div className="font-medium">{s.name}</div>
+                      <div className="text-xs text-[var(--callendra-text-secondary)] mt-1">
+                        ${s.price} · {s.duration} min
+                      </div>
+                      {nextSearchingServiceId === s.id ? (
+                        <div className="text-xs text-[var(--callendra-accent)] mt-1 animate-pulse">
+                          Searching...
+                        </div>
+                      ) : null}
+                    </button>
+                  ))}
+                </div>
+                {nextError ? <p className="text-sm text-red-400 mt-3">{nextError}</p> : null}
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-[var(--callendra-text-secondary)] mb-4">
+                  Next available:{" "}
+                  <span className="text-[var(--callendra-text-primary)] font-medium">{nextResult.staffName}</span> on{" "}
+                  <span className="text-[var(--callendra-text-primary)] font-medium">{nextResult.date}</span> at{" "}
+                  <span className="text-[var(--callendra-accent)] font-semibold">{nextResult.time}</span> - Book this?
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={confirmNextAvailableResult}
+                    className="flex-1 ui-btn-primary py-3 rounded-xl text-sm font-semibold"
+                  >
+                    Book this
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNextResult(null)}
+                    className="flex-1 border border-[var(--callendra-border)] py-3 rounded-xl text-sm"
+                  >
+                    Try another service
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </main>
   );
 }
