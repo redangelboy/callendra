@@ -266,6 +266,13 @@ function StaffDayInner() {
   }, [load]);
 
   useEffect(() => {
+    const t = setInterval(() => {
+      void load();
+    }, 15_000);
+    return () => clearInterval(t);
+  }, [load]);
+
+  useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 15000);
     return () => clearInterval(t);
   }, []);
