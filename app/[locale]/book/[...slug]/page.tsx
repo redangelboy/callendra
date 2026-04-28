@@ -1,6 +1,13 @@
 "use client";
 import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { PublicBookingFlow } from "@/components/public-booking-flow";
+
+function BookPageInner() {
+  const searchParams = useSearchParams();
+  const walkInToken = searchParams.get("token")?.trim() || null;
+  return <PublicBookingFlow walkInToken={walkInToken} />;
+}
 
 export default function BookPage() {
   return (
@@ -11,7 +18,7 @@ export default function BookPage() {
         </div>
       }
     >
-      <PublicBookingFlow />
+      <BookPageInner />
     </Suspense>
   );
 }
