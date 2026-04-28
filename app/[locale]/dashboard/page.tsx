@@ -206,6 +206,13 @@ export default function DashboardPage() {
   }, [locationFilter, scheduleDate]);
 
   useEffect(() => {
+    const id = window.setInterval(() => {
+      void fetchData();
+    }, 15_000);
+    return () => window.clearInterval(id);
+  }, [locationFilter, scheduleDate]);
+
+  useEffect(() => {
     const onDocMouseDown = (e: MouseEvent) => {
       if (!locationMenuRef.current?.contains(e.target as Node)) {
         setLocationMenuOpen(false);

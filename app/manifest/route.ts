@@ -28,6 +28,7 @@ export async function GET(req: NextRequest) {
 
   const isStaffDay = start_url.includes("/staff-day");
   const isTimeClock = start_url.includes("/timeclock/");
+  const isDashboard = start_url.includes("/dashboard");
   const body = {
     ...BASE_MANIFEST,
     start_url,
@@ -43,6 +44,12 @@ export async function GET(req: NextRequest) {
       ? {
           name: "Callendra · Time Clock",
           short_name: "Time Clock",
+        }
+      : {}),
+    ...(isDashboard
+      ? {
+          name: "Callendra · Dashboard",
+          short_name: "Dashboard",
         }
       : {}),
   };
