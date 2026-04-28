@@ -460,22 +460,24 @@ export function PublicBookingFlow({ walkInToken = null }: PublicBookingFlowProps
                   </button>
                 ))}
               </div>
-              <div className="mt-4 pt-4 border-t border-[var(--callendra-border)]">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setNextError("");
-                    setNextResult(null);
-                    setNextModalOpen(true);
-                  }}
-                  className="w-full border border-dashed border-[var(--callendra-accent)]/60 rounded-2xl px-4 py-3 text-left hover:border-[var(--callendra-accent)] transition"
-                >
-                  <div className="font-semibold text-[var(--callendra-accent)]">⚡ Next Available</div>
-                  <div className="text-xs text-[var(--callendra-text-secondary)] mt-1">
-                    Let us find the first open slot for you
-                  </div>
-                </button>
-              </div>
+              {!isWalkIn ? (
+                <div className="mt-4 pt-4 border-t border-[var(--callendra-border)]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNextError("");
+                      setNextResult(null);
+                      setNextModalOpen(true);
+                    }}
+                    className="w-full border border-dashed border-[var(--callendra-accent)]/60 rounded-2xl px-4 py-3 text-left hover:border-[var(--callendra-accent)] transition"
+                  >
+                    <div className="font-semibold text-[var(--callendra-accent)]">⚡ Next Available</div>
+                    <div className="text-xs text-[var(--callendra-text-secondary)] mt-1">
+                      Let us find the first open slot for you
+                    </div>
+                  </button>
+                </div>
+              ) : null}
             </div>
           )}
 
@@ -631,7 +633,7 @@ export function PublicBookingFlow({ walkInToken = null }: PublicBookingFlowProps
         </div>
       </div>
 
-      {nextModalOpen && (
+      {nextModalOpen && !isWalkIn && (
         <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="w-full max-w-md bg-[var(--callendra-bg)] border border-[var(--callendra-border)] rounded-2xl p-5 max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-3">

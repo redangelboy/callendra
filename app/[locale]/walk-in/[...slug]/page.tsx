@@ -17,8 +17,9 @@ function WalkInGate() {
   const slugParam = Array.isArray(params?.slug) ? params.slug : [];
   const parentSlug = slugParam[0] ?? "";
   const locationSlug = slugParam[1] ?? "";
-  const bookingHref = `/${locale}/book/${[parentSlug, locationSlug].filter(Boolean).join("/")}`;
   const token = searchParams.get("token")?.trim() ?? "";
+  const bookingPath = `/${locale}/book/${[parentSlug, locationSlug].filter(Boolean).join("/")}`;
+  const bookingHref = token ? `${bookingPath}?token=${encodeURIComponent(token)}` : bookingPath;
   const [step, setStep] = useState<"home" | "queue" | "service" | "form" | "done">("home");
   const [services, setServices] = useState<ServiceRow[]>([]);
   const [queueRows, setQueueRows] = useState<QueueRow[]>([]);
