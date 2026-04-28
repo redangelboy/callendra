@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { BUSINESS_TIMEZONE, businessDayUtcRange } from "@/lib/business-timezone";
 import { workBreakStateFromOrderedTypes } from "@/lib/clock-session";
 import { staffBreakDateFromYmd } from "@/lib/staff-break-date";
+import { checkAndAutoAssign } from "@/lib/walkin-queue-auto-assign";
 
 function bearerStaffDayToken(req: NextRequest): string | null {
   const h = req.headers.get("authorization")?.trim();
@@ -25,7 +26,7 @@ type ScanTxResult =
   | { status: "sequence_checkout_break" }
   | { status: "sequence_break_start" }
   | { status: "sequence_break_end" }
-  | { status: "ok"; staffName: string; timestamp: Date };
+  | { status: "ok"; staffName: string; timestamp: Date; businessId: string };
 
 export async function POST(req: NextRequest) {
   try {
@@ -151,7 +152,7 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      return { status: "ok", staffName: staff.name, timestamp: entry.timestamp };
+      return { status: "ok", staffName: staff.name, timestamp: entry.timestamp, businessId: row.businessId };
     });
 
     if (result.status === "invalid") {
@@ -206,6 +207,10 @@ export async function POST(req: NextRequest) {
         },
         { status: 409 }
       );
+    }
+
+    if (result.status === "ok" && type === "checkout") {
+      await checkAndAutoAssign(result.businessId);
     }
 
     return NextResponse.json({

@@ -32,6 +32,14 @@ type NextSuggestion = {
   suggestedStartIso: string;
 };
 
+type QueueItem = {
+  id: string;
+  clientName: string;
+  serviceName: string;
+  waitMinutes: number;
+  status: string;
+};
+
 async function safeStopHtml5Qrcode(instance: Html5Qrcode | null) {
   if (!instance) return;
   try {
@@ -139,16 +147,22 @@ function StaffDayInner() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [staffName, setStaffName] = useState("");
+  const [staffId, setStaffId] = useState("");
   const [staffPhoto, setStaffPhoto] = useState<string | null>(null);
   const [brandName, setBrandName] = useState("");
   const [locationName, setLocationName] = useState("");
   const [themePreset, setThemePreset] = useState<string>(DEFAULT_THEME_ID);
+  const [activeLocationId, setActiveLocationId] = useState("");
+  const [activeLocationSlug, setActiveLocationSlug] = useState("");
   const [appointments, setAppointments] = useState<Apt[]>([]);
   const [now, setNow] = useState(() => new Date());
   const [actionError, setActionError] = useState("");
   const [completingId, setCompletingId] = useState<string | null>(null);
   const [pendingSuggestion, setPendingSuggestion] = useState<NextSuggestion | null>(null);
   const [advancing, setAdvancing] = useState(false);
+  const [queueOpen, setQueueOpen] = useState(false);
+  const [queueItems, setQueueItems] = useState<QueueItem[]>([]);
+  const [takingQueueId, setTakingQueueId] = useState<string | null>(null);
 
   const [clockMode, setClockMode] = useState<null | ClockScanAction>(null);
   const [clockPhase, setClockPhase] = useState<null | "selfie" | "qr">(null);
@@ -176,6 +190,7 @@ function StaffDayInner() {
       return;
     }
     const data = await res.json();
+    setStaffId(typeof data.staff?.id === "string" ? data.staff.id : "");
     setStaffName(data.staff?.name ?? "");
     const p = data.staff?.photo;
     setStaffPhoto(typeof p === "string" && p.trim() ? p.trim() : null);
@@ -183,6 +198,8 @@ function StaffDayInner() {
     setLocationName(typeof data.locationName === "string" ? data.locationName : "");
     const tp = typeof data.themePreset === "string" ? data.themePreset : DEFAULT_THEME_ID;
     setThemePreset(isValidThemeId(tp) ? tp : DEFAULT_THEME_ID);
+    setActiveLocationId(typeof data.activeLocationId === "string" ? data.activeLocationId : "");
+    setActiveLocationSlug(typeof data.activeLocationSlug === "string" ? data.activeLocationSlug : "");
     setAppointments(Array.isArray(data.appointments) ? data.appointments : []);
     const punches = Array.isArray(data.clockToday)
       ? (data.clockToday as unknown[]).filter(
@@ -211,6 +228,25 @@ function StaffDayInner() {
     }
     setLoading(false);
   }, [token]);
+
+  const loadQueue = useCallback(async () => {
+    if (!activeLocationId || !token) return;
+    const res = await fetch(
+      `/api/walkin-queue?locationId=${encodeURIComponent(activeLocationId)}&token=${encodeURIComponent(token)}`
+    );
+    if (!res.ok) return;
+    const data = await res.json();
+    const rows = Array.isArray(data.queue) ? data.queue : [];
+    setQueueItems(
+      rows.map((r: any) => ({
+        id: String(r.id),
+        clientName: String(r.clientName ?? ""),
+        serviceName: String(r.serviceName ?? "Service"),
+        waitMinutes: Number(r.waitMinutes ?? 0),
+        status: String(r.status ?? "waiting"),
+      }))
+    );
+  }, [activeLocationId, token]);
 
   const clockGate = useMemo(() => {
     const ids = Object.keys(clockSessionByBusinessId);
@@ -273,9 +309,56 @@ function StaffDayInner() {
   }, [load]);
 
   useEffect(() => {
+    const t = setInterval(() => {
+      void loadQueue();
+    }, 15_000);
+    return () => clearInterval(t);
+  }, [loadQueue]);
+
+  useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 15000);
     return () => clearInterval(t);
   }, []);
+
+  useEffect(() => {
+    void loadQueue();
+  }, [loadQueue]);
+
+  useEffect(() => {
+    if (!activeLocationSlug) return;
+    const win = window as any;
+    if (win._callendraStaffQueueSocket) {
+      win._callendraStaffQueueSocket.disconnect();
+      win._callendraStaffQueueSocket = null;
+    }
+    const connect = () => {
+      const socket = win.io(win.location.origin, { transports: ["websocket", "polling"] });
+      win._callendraStaffQueueSocket = socket;
+      socket.on("connect", () => socket.emit("join-display", activeLocationSlug));
+      socket.on("queue:new", () => void loadQueue());
+      socket.on("queue:taken", () => {
+        void loadQueue();
+        void load();
+      });
+      socket.on("queue:notify", () => void loadQueue());
+      socket.on("new-appointment", () => void load());
+      socket.on("appointment:new", () => void load());
+    };
+    if (win.io) {
+      connect();
+    } else {
+      const script = document.createElement("script");
+      script.src = "/socket.io/socket.io.js";
+      script.onload = connect;
+      document.head.appendChild(script);
+    }
+    return () => {
+      if (win._callendraStaffQueueSocket) {
+        win._callendraStaffQueueSocket.disconnect();
+        win._callendraStaffQueueSocket = null;
+      }
+    };
+  }, [activeLocationSlug, load, loadQueue]);
 
   useEffect(() => {
     return () => {
@@ -572,6 +655,13 @@ function StaffDayInner() {
               <p className="text-[13px] leading-snug text-[var(--callendra-text-secondary)] break-words">
                 Today&apos;s appointments
               </p>
+              <button
+                type="button"
+                onClick={() => setQueueOpen(true)}
+                className="mt-2 inline-flex rounded-full border border-[var(--callendra-border)] bg-[color-mix(in_srgb,var(--callendra-accent)_16%,var(--callendra-bg))] px-3 py-1 text-[11px] font-semibold"
+              >
+                Waiting List ({queueItems.length})
+              </button>
             </div>
           </div>
           <aside className="w-full min-w-0 self-start rounded-xl border border-[var(--callendra-border)] bg-[color-mix(in_srgb,var(--callendra-text-primary)_5%,var(--callendra-bg))] shadow-[0_1px_0_color-mix(in_srgb,var(--callendra-text-primary)_12%,transparent)] flex flex-col p-1.5 sm:p-2 gap-1">
@@ -887,6 +977,70 @@ function StaffDayInner() {
                 Not now
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {queueOpen && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-3 sm:items-center">
+          <div className="w-full max-w-md rounded-2xl border border-[var(--callendra-border)] bg-[var(--callendra-bg)] p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-base font-semibold">Waiting List</h2>
+              <button
+                type="button"
+                onClick={() => setQueueOpen(false)}
+                className="rounded-md border border-[var(--callendra-border)] px-2 py-1 text-xs"
+              >
+                Close
+              </button>
+            </div>
+            {queueItems.length === 0 ? (
+              <p className="rounded-lg border border-[var(--callendra-border)] p-3 text-sm text-[var(--callendra-text-secondary)]">
+                No one waiting right now
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {queueItems.map((q) => (
+                  <li key={q.id} className="rounded-lg border border-[var(--callendra-border)] p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold">{q.clientName}</p>
+                        <p className="truncate text-xs text-[var(--callendra-text-secondary)]">{q.serviceName}</p>
+                        <p className="text-[11px] text-[var(--callendra-text-secondary)]">Waiting {q.waitMinutes} min</p>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={!staffId || !activeLocationId || takingQueueId === q.id}
+                        onClick={async () => {
+                          setTakingQueueId(q.id);
+                          try {
+                            const res = await fetch("/api/walkin-queue/take", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ queueId: q.id, staffId, token }),
+                            });
+                            if (!res.ok) {
+                              const d = await res.json().catch(() => ({}));
+                              throw new Error(typeof d.error === "string" ? d.error : "Could not take client");
+                            }
+                            setQueueOpen(false);
+                            await load();
+                            await loadQueue();
+                          } catch (e) {
+                            setActionError(e instanceof Error ? e.message : "Could not take client");
+                          } finally {
+                            setTakingQueueId(null);
+                          }
+                        }}
+                        className="ui-btn-primary rounded-md px-3 py-2 text-xs font-semibold disabled:opacity-50"
+                      >
+                        {takingQueueId === q.id ? "Taking…" : "Take"}
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </div>
       )}

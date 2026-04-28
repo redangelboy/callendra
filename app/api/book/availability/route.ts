@@ -54,6 +54,7 @@ export async function GET(req: NextRequest) {
       staffId,
       date,
       serviceDurationMin: service.duration ?? 30,
+      minLeadMinutes: 5,
     });
 
     return NextResponse.json({ slots });

@@ -35,6 +35,10 @@ function formatVoiceDateTime(d: Date): { date: string; time: string } {
   };
 }
 
+function minRetellBookStart(): Date {
+  return DateTime.now().setZone(BUSINESS_TIMEZONE).plus({ minutes: 5 }).toJSDate();
+}
+
 /** Lookup: only upcoming (date >= now). Cancel/modify: next upcoming first, else most recent confirmed by scheduled date. */
 async function findAppointmentForPhone(
   businessId: string,
@@ -232,11 +236,11 @@ export async function POST(req: NextRequest) {
       const { resolvedDate, resolvedTime } = resolveDateAndTime(date, time);
       const appointmentDate = utcFromYmdAndTime(resolvedDate, resolvedTime);
 
-      const now = new Date();
-      if (appointmentDate < now) {
+      const minStart = minRetellBookStart();
+      if (appointmentDate < minStart) {
         return NextResponse.json({
           success: false,
-          message: "That time has already passed. Please choose a future time.",
+          message: "That time is no longer available, please choose a later slot.",
         }, { status: 400 });
       }
 
@@ -364,12 +368,12 @@ export async function POST(req: NextRequest) {
 
     const appointmentDate = utcFromYmdAndTime(resolvedDate, resolvedTime);
 
-    const nowBook = new Date();
-    if (appointmentDate < nowBook) {
+    const minStart = minRetellBookStart();
+    if (appointmentDate < minStart) {
       return NextResponse.json(
         {
           success: false,
-          message: `That time has already passed. Please choose a future time.`,
+          message: "That time is no longer available, please choose a later slot.",
         },
         { status: 400 }
       );

@@ -9,6 +9,7 @@ import { appointmentTotalDurationMin } from "@/lib/appointment-duration";
 import { findStaffIntervalConflict } from "@/lib/appointment-overlap";
 import { DEFAULT_THEME_ID, isValidThemeId } from "@/lib/callendra-themes";
 import { workBreakStateFromOrderedTypes } from "@/lib/clock-session";
+import { checkAndAutoAssign } from "@/lib/walkin-queue-auto-assign";
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL!,
@@ -105,7 +106,12 @@ export async function GET(req: NextRequest) {
       orderBy: { date: "asc" },
     });
 
-    const themeBusinessId = appointmentsRaw[0]?.businessId ?? locationIds[0];
+    const activeLocationId = clockBusinessIds[0] ?? locationIds[0];
+    const themeBusinessId = appointmentsRaw[0]?.businessId ?? activeLocationId;
+    const activeLocation = await prisma.business.findUnique({
+      where: { id: activeLocationId },
+      select: { id: true, slug: true },
+    });
     const themePreset = await resolveThemePreset(themeBusinessId);
     const { brandName, locationName } = await headerLabelsForBusiness(themeBusinessId);
 
@@ -122,6 +128,8 @@ export async function GET(req: NextRequest) {
       staff: { id: staff.id, name: staff.name, photo: staff.photo },
       brandName,
       locationName,
+      activeLocationId: activeLocation?.id ?? themeBusinessId,
+      activeLocationSlug: activeLocation?.slug ?? null,
       themePreset,
       appointments,
       clockToday,
@@ -231,6 +239,7 @@ export async function POST(req: NextRequest) {
       where: { id: existing.id },
       data: { status: "completed" },
     });
+    await checkAndAutoAssign(existing.businessId);
 
     const ymd = DateTime.fromJSDate(existing.date, { zone: BUSINESS_TIMEZONE }).toFormat("yyyy-LL-dd");
     const { end: dayEnd } = businessDayUtcRange(ymd);

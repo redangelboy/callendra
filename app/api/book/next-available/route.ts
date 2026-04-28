@@ -97,6 +97,7 @@ export async function GET(req: NextRequest) {
           date: ymd,
           serviceDurationMin: service.duration ?? 30,
           excludePastForToday: true,
+          minLeadMinutes: 5,
         });
         if (slots[0]) {
           if (!earliest) {

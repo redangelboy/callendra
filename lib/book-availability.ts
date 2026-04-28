@@ -29,6 +29,7 @@ export async function getStaffServiceSlotsForDay(
     date: string;
     serviceDurationMin: number;
     excludePastForToday?: boolean;
+    minLeadMinutes?: number;
   }
 ): Promise<string[]> {
   const dayOfWeek = parseYmdToJsDayOfWeek(params.date);
@@ -74,9 +75,12 @@ export async function getStaffServiceSlotsForDay(
   }
 
   const slots: string[] = [];
-  const nowMillis = DateTime.now().setZone(BUSINESS_TIMEZONE).toMillis();
-  const todayYmd = DateTime.now().setZone(BUSINESS_TIMEZONE).toFormat("yyyy-LL-dd");
+  const nowInBusinessTz = DateTime.now().setZone(BUSINESS_TIMEZONE);
+  const nowMillis = nowInBusinessTz.toMillis();
+  const todayYmd = nowInBusinessTz.toFormat("yyyy-LL-dd");
   const enforceFutureOnly = params.excludePastForToday === true && params.date === todayYmd;
+  const leadMinutes = Number.isFinite(params.minLeadMinutes) ? Math.max(0, Math.floor(params.minLeadMinutes!)) : 0;
+  const minStartMillis = leadMinutes > 0 ? nowInBusinessTz.plus({ minutes: leadMinutes }).toMillis() : null;
   for (let m = startMinutes; m + duration <= endMinutes; m += duration) {
     const h = Math.floor(m / 60);
     const min = m % 60;
@@ -84,6 +88,7 @@ export async function getStaffServiceSlotsForDay(
     const slotDate = utcFromYmdAndTime(params.date, timeStr);
     const slotEnd = new Date(slotDate.getTime() + duration * 60_000);
     if (enforceFutureOnly && slotDate.getTime() <= nowMillis) continue;
+    if (minStartMillis != null && slotDate.getTime() < minStartMillis) continue;
     const s0 = slotDate.getTime();
     const e0 = slotEnd.getTime();
 
