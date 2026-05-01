@@ -7,6 +7,7 @@ export default function ServicesPage() {
   const [locations, setLocations] = useState<any[]>([]);
   const [isMain, setIsMain] = useState(false);
   const [form, setForm] = useState({ name: "", price: "", duration: "" });
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [priceDrafts, setPriceDrafts] = useState<Record<string, Record<string, string>>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -30,7 +31,27 @@ export default function ServicesPage() {
 
   const branchLocations = locations.filter((loc) => loc.locationSlug && loc.locationSlug.trim() !== "" && loc.locationSlug !== "main");
 
+  const cancelEdit = () => {
+    setEditingId(null);
+    setForm({ name: "", price: "", duration: "" });
+    setFormError("");
+  };
+
+  const startEdit = (s: any) => {
+    setFormError("");
+    setEditingId(s.id);
+    setForm({
+      name: s.name ?? "",
+      price: s.price != null ? String(s.price) : "",
+      duration: s.duration != null ? String(s.duration) : "",
+    });
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
+
   const handleAdd = async () => {
+    if (editingId) return;
     if (!form.name || !form.price || !form.duration) {
       setFormError("All fields are required");
       return;
@@ -54,7 +75,33 @@ export default function ServicesPage() {
     }
   };
 
+  const handleUpdate = async () => {
+    if (!editingId) return;
+    if (!form.name || !form.price || !form.duration) {
+      setFormError("All fields are required");
+      return;
+    }
+    setLoading(true);
+    setFormError("");
+    try {
+      const res = await fetch("/api/services", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: editingId, ...form }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      cancelEdit();
+      fetchAll();
+    } catch (err: any) {
+      setFormError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleDelete = async (id: string) => {
+    if (editingId === id) cancelEdit();
     await fetch("/api/services", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
@@ -138,7 +185,7 @@ export default function ServicesPage() {
 
         {isMain && (
           <div className="border border-[var(--callendra-border)] rounded-2xl p-6 mb-8">
-            <h2 className="font-semibold mb-4">Add new service</h2>
+            <h2 className="font-semibold mb-4">{editingId ? "Edit service" : "Add new service"}</h2>
             <div className="flex flex-col gap-3">
               <input
                 type="text"
@@ -169,13 +216,26 @@ export default function ServicesPage() {
                 </div>
               </div>
               {formError && <p className="text-red-400 text-sm">{formError}</p>}
-              <button
-                onClick={handleAdd}
-                disabled={loading}
-                className="ui-btn-primary py-3 rounded-xl text-sm font-semibold transition disabled:opacity-50"
-              >
-                {loading ? "Adding..." : "Add service"}
-              </button>
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+                <button
+                  type="button"
+                  onClick={editingId ? handleUpdate : handleAdd}
+                  disabled={loading}
+                  className="ui-btn-primary py-3 rounded-xl text-sm font-semibold transition disabled:opacity-50 sm:flex-1"
+                >
+                  {loading ? (editingId ? "Saving…" : "Adding…") : editingId ? "Save changes" : "Add service"}
+                </button>
+                {editingId ? (
+                  <button
+                    type="button"
+                    onClick={cancelEdit}
+                    disabled={loading}
+                    className="border border-[var(--callendra-border)] py-3 rounded-xl text-sm font-medium transition hover:bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] disabled:opacity-50 sm:w-36"
+                  >
+                    Cancel
+                  </button>
+                ) : null}
+              </div>
             </div>
           </div>
         )}
@@ -199,12 +259,22 @@ export default function ServicesPage() {
                     </div>
                   </div>
                   {isMain && (
-                    <button
-                      onClick={() => handleDelete(s.id)}
-                      className="text-[var(--callendra-text-secondary)] opacity-80 hover:text-red-400 transition text-sm shrink-0"
-                    >
-                      Remove
-                    </button>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => startEdit(s)}
+                        className="text-[var(--callendra-accent)] opacity-90 hover:opacity-100 transition text-sm font-medium"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(s.id)}
+                        className="text-[var(--callendra-text-secondary)] opacity-80 hover:text-red-400 transition text-sm"
+                      >
+                        Remove
+                      </button>
+                    </div>
                   )}
                 </div>
                 {isMain && branchLocations.length > 0 && (

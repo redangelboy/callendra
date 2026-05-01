@@ -120,6 +120,50 @@ export async function POST(req: NextRequest) {
   }
 }
 
+export async function PATCH(req: NextRequest) {
+  try {
+    const session = req.cookies.get("session")?.value;
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const { ownerId, businessId: sessionBusinessId } = JSON.parse(session);
+    const mainId = await getMainBusinessIdForOwner(prisma, ownerId);
+    if (!mainId) return NextResponse.json({ error: "No business found" }, { status: 400 });
+
+    const current = await prisma.business.findUnique({ where: { id: sessionBusinessId } });
+    if (!current || current.ownerId !== ownerId || !isOwnerMainBusinessSession(sessionBusinessId, mainId)) {
+      return NextResponse.json({ error: "Services can only be edited from the main business" }, { status: 403 });
+    }
+
+    const body = await req.json();
+    const { id, name, price, duration } = body;
+    if (!id || !name || price == null || duration == null) {
+      return NextResponse.json({ error: "id, name, price, and duration are required" }, { status: 400 });
+    }
+
+    const row = await prisma.service.findFirst({ where: { id, businessId: mainId, active: true } });
+    if (!row) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+    const priceNum = parseFloat(String(price));
+    const durationNum = parseInt(String(duration), 10);
+    if (!Number.isFinite(priceNum) || !Number.isFinite(durationNum) || durationNum <= 0) {
+      return NextResponse.json({ error: "Invalid price or duration" }, { status: 400 });
+    }
+
+    const updated = await prisma.service.update({
+      where: { id },
+      data: {
+        name: String(name).trim(),
+        price: priceNum,
+        duration: durationNum,
+      },
+    });
+
+    return NextResponse.json(updated);
+  } catch (error) {
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  }
+}
+
 export async function DELETE(req: NextRequest) {
   try {
     const session = req.cookies.get("session")?.value;
