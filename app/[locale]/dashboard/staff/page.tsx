@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { isMainBusinessFromPayload } from "@/lib/main-business";
 import { bookingPathForBusiness } from "@/lib/booking-path";
+import { QrSetupModal } from "@/components/qr-setup-modal";
 
 export default function StaffPage() {
   const params = useParams();
@@ -22,6 +23,7 @@ export default function StaffPage() {
   const [regenTokenId, setRegenTokenId] = useState<string | null>(null);
   const [copiedBookingKey, setCopiedBookingKey] = useState<string | null>(null);
   const [copiedStaffDayStaffId, setCopiedStaffDayStaffId] = useState<string | null>(null);
+  const [staffDayQrStaffId, setStaffDayQrStaffId] = useState<string | null>(null);
 
   const staffDayUrl = (token: string | null | undefined) => {
     if (!token || typeof window === "undefined") return "";
@@ -219,6 +221,9 @@ export default function StaffPage() {
     });
   };
 
+  const staffDayQrStaff = staffDayQrStaffId ? staff.find((x) => x.id === staffDayQrStaffId) : null;
+  const staffDayQrResolvedUrl = staffDayUrl(staffDayQrStaff?.staffDayViewToken);
+
   return (
     <main className="min-h-screen">
       <nav className="border-b border-[var(--callendra-border)] px-8 py-4 flex items-center gap-4">
@@ -266,7 +271,7 @@ export default function StaffPage() {
             staff.map((s) => (
               <div key={s.id} className="border border-[var(--callendra-border)] rounded-2xl px-6 py-4 hover:border-[var(--callendra-border)] transition">
                 <div className="flex justify-between items-start gap-4">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
                     <label className="cursor-pointer relative group">
                       <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-[var(--callendra-border)] bg-[color-mix(in_srgb,var(--callendra-text-primary)_10%,var(--callendra-bg))] flex items-center justify-center">
                         {s.photo ? (
@@ -292,19 +297,30 @@ export default function StaffPage() {
                       {s.email && <div className="text-xs text-[var(--callendra-text-secondary)] opacity-80">{s.email}</div>}
                     </div>
                   </div>
-                  {isMain && (
-                    <div className="flex gap-3 shrink-0">
+                  <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3 shrink-0">
+                    {isOwner && s.staffDayViewToken ? (
                       <button
-                        onClick={() => { setEditingStaff(s); setEditForm({ name: s.name, phone: s.phone || "", email: s.email || "" }); }}
-                        className="text-[var(--callendra-text-secondary)] hover:opacity-90 transition text-sm">
-                        Edit
+                        type="button"
+                        onClick={() => setStaffDayQrStaffId(s.id)}
+                        className="text-[var(--callendra-accent)] hover:opacity-90 transition text-xs sm:text-sm font-medium whitespace-nowrap"
+                      >
+                        Scan to setup Staff Day
                       </button>
-                      <button onClick={() => handleDelete(s.id)}
-                        className="text-[var(--callendra-text-secondary)] opacity-80 hover:text-red-400 transition text-sm">
-                        Remove
-                      </button>
-                    </div>
-                  )}
+                    ) : null}
+                    {isMain && (
+                      <>
+                        <button
+                          onClick={() => { setEditingStaff(s); setEditForm({ name: s.name, phone: s.phone || "", email: s.email || "" }); }}
+                          className="text-[var(--callendra-text-secondary)] hover:opacity-90 transition text-sm">
+                          Edit
+                        </button>
+                        <button onClick={() => handleDelete(s.id)}
+                          className="text-[var(--callendra-text-secondary)] opacity-80 hover:text-red-400 transition text-sm">
+                          Remove
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
                 {isOwner && (
                   <div className="mt-4 pt-4 border-t border-[var(--callendra-border)]">
@@ -426,6 +442,13 @@ export default function StaffPage() {
           )}
         </div>
       </div>
+
+      <QrSetupModal
+        open={staffDayQrStaffId != null && staffDayQrResolvedUrl.length > 0}
+        onClose={() => setStaffDayQrStaffId(null)}
+        url={staffDayQrResolvedUrl}
+        hint="Staff scans this with their phone and taps Add to Home Screen"
+      />
 
       {/* Edit Staff Modal */}
       {editingStaff && (

@@ -610,8 +610,13 @@ export default function DashboardPage() {
               </button>
             )}
             {quickActions.map((action) => (
-              <a key={action.label} href={action.href}
-                className="border border-[var(--callendra-border)] rounded-2xl p-5 text-left hover:border-[var(--callendra-accent)] transition block">
+              <a
+                key={action.label}
+                href={action.href}
+                target={action.label === "Display screen" ? "_blank" : undefined}
+                rel={action.label === "Display screen" ? "noopener noreferrer" : undefined}
+                className="border border-[var(--callendra-border)] rounded-2xl p-5 text-left hover:border-[var(--callendra-accent)] transition block"
+              >
                 <div className="text-2xl mb-2">{action.icon}</div>
                 <div className="text-sm font-medium">{action.label}</div>
               </a>

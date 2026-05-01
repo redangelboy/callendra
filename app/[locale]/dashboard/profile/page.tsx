@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { bookingPathForBusiness, walkInPathForBusiness } from "@/lib/booking-path";
 import { normalizeBrandSlug } from "@/lib/rename-brand-slug";
+import { QrSetupModal } from "@/components/qr-setup-modal";
 import {
   CALLENDRA_THEMES,
   type CallendraThemeId,
@@ -60,6 +61,7 @@ export default function ProfilePage() {
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordError, setPasswordError] = useState("");
   const [passwordSaved, setPasswordSaved] = useState(false);
+  const [kioskQrUrl, setKioskQrUrl] = useState<string | null>(null);
 
   const showOwnerEmailField = useMemo(() => {
     if (!isOwner) return false;
@@ -751,16 +753,38 @@ export default function ProfilePage() {
                     {walkInUrlsByLocation.length > 0 ? (
                       <ul className="flex flex-col gap-4">
                         {walkInUrlsByLocation.map((row) => (
-                          <li key={row.id}>
-                            <div className="text-xs text-[var(--callendra-text-secondary)] mb-1">{row.name}</div>
-                            <div className="font-mono text-xs break-all text-[var(--callendra-accent)]">{row.url}</div>
+                          <li
+                            key={row.id}
+                            className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <div className="text-xs text-[var(--callendra-text-secondary)] mb-1">{row.name}</div>
+                              <div className="font-mono text-xs break-all text-[var(--callendra-accent)]">{row.url}</div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setKioskQrUrl(row.url)}
+                              className="shrink-0 self-start border border-[var(--callendra-border)] px-3 py-2 rounded-xl text-xs sm:text-sm font-medium hover:opacity-90 transition whitespace-nowrap"
+                            >
+                              Scan to setup Kiosk
+                            </button>
                           </li>
                         ))}
                       </ul>
                     ) : walkInUrl ? (
-                      <div>
-                        <div className="text-xs text-[var(--callendra-text-secondary)] mb-1">Full walk-in URL</div>
-                        <div className="font-mono text-xs break-all text-[var(--callendra-accent)]">{walkInUrl}</div>
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs text-[var(--callendra-text-secondary)] mb-1">Full walk-in URL</div>
+                          <div className="font-mono text-xs break-all text-[var(--callendra-accent)]">{walkInUrl}</div>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={!walkInUrl}
+                          onClick={() => setKioskQrUrl(walkInUrl)}
+                          className="shrink-0 self-start border border-[var(--callendra-border)] px-3 py-2 rounded-xl text-xs sm:text-sm font-medium hover:opacity-90 transition whitespace-nowrap disabled:opacity-40"
+                        >
+                          Scan to setup Kiosk
+                        </button>
                       </div>
                     ) : null}
                   </>
@@ -797,6 +821,13 @@ export default function ProfilePage() {
                   )}
                 </div>
               </div>
+
+              <QrSetupModal
+                open={kioskQrUrl != null && kioskQrUrl.length > 0}
+                onClose={() => setKioskQrUrl(null)}
+                url={kioskQrUrl ?? ""}
+                hint="Scan with the iPad camera and tap Add to Home Screen"
+              />
             </>
           ))}
 
