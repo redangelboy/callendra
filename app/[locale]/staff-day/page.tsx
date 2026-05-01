@@ -6,6 +6,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import { CallendraThemeStyle } from "@/components/callendra-theme-style";
 import { StaffAvatar } from "@/components/staff-avatar";
 import { DEFAULT_THEME_ID, isValidThemeId } from "@/lib/callendra-themes";
+import { formatInstantInBusinessTz } from "@/lib/business-timezone";
 
 type Apt = {
   id: string;
@@ -557,8 +558,7 @@ function StaffDayInner() {
     };
   }, [clockMode, clockPhase, token]);
 
-  const formatTime = (iso: string) =>
-    new Date(iso).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+  const formatTime = (iso: string) => formatInstantInBusinessTz(iso);
 
   const inProgressId = useMemo(() => {
     for (const apt of appointments) {
@@ -682,10 +682,7 @@ function StaffDayInner() {
                           : tl === "break_end"
                             ? "Resume"
                             : "In";
-                    const tStr = new Date(p.timestamp).toLocaleTimeString("en-US", {
-                      hour: "numeric",
-                      minute: "2-digit",
-                    });
+                    const tStr = formatInstantInBusinessTz(p.timestamp);
                     return (
                       <li
                         key={`${p.timestamp}-${i}`}

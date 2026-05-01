@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { useGoogleReCaptcha } from "react-google-recaptcha-v3";
 import { useParams, useSearchParams } from "next/navigation";
 import { DateTime } from "luxon";
-import { BUSINESS_TIMEZONE } from "@/lib/business-timezone";
+import { BUSINESS_TIMEZONE, formatHhmmForDisplay } from "@/lib/business-timezone";
 import { StaffAvatar } from "@/components/staff-avatar";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -388,7 +388,8 @@ export function PublicBookingFlow({ walkInToken = null }: PublicBookingFlowProps
                     <span className="text-[var(--callendra-text-primary)] font-medium">Date:</span> {selectedDate}
                   </div>
                   <div>
-                    <span className="text-[var(--callendra-text-primary)] font-medium">Time:</span> {selectedTime}
+                    <span className="text-[var(--callendra-text-primary)] font-medium">Time:</span>{" "}
+                    {formatHhmmForDisplay(selectedTime)}
                   </div>
                 </div>
               </div>
@@ -565,7 +566,7 @@ export function PublicBookingFlow({ walkInToken = null }: PublicBookingFlowProps
                               : "border-[var(--callendra-border)] hover:border-[var(--callendra-accent)]"
                           }`}
                         >
-                          {slot}
+                          {formatHhmmForDisplay(slot)}
                         </button>
                       ))}
                     </div>
@@ -593,7 +594,7 @@ export function PublicBookingFlow({ walkInToken = null }: PublicBookingFlowProps
                     {selectedStaff?.name} · {selectedService?.name}
                   </div>
                   <div>
-                    {selectedDate} {selectedTime}
+                    {selectedDate} {formatHhmmForDisplay(selectedTime)}
                   </div>
                 </div>
               </div>
@@ -681,7 +682,10 @@ export function PublicBookingFlow({ walkInToken = null }: PublicBookingFlowProps
                   Next available:{" "}
                   <span className="text-[var(--callendra-text-primary)] font-medium">{nextResult.staffName}</span> on{" "}
                   <span className="text-[var(--callendra-text-primary)] font-medium">{nextResult.date}</span> at{" "}
-                  <span className="text-[var(--callendra-accent)] font-semibold">{nextResult.time}</span> - Book this?
+                  <span className="text-[var(--callendra-accent)] font-semibold">
+                    {formatHhmmForDisplay(nextResult.time)}
+                  </span>{" "}
+                  - Book this?
                 </p>
                 <div className="flex gap-2">
                   <button

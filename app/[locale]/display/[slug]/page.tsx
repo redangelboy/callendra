@@ -4,6 +4,7 @@ import { Suspense, useState, useEffect, useCallback } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { StaffAvatar } from "@/components/staff-avatar";
 import { appointmentTotalDurationMin } from "@/lib/appointment-duration";
+import { formatInstantInBusinessTz, formatInstantInBusinessTzWithSeconds } from "@/lib/business-timezone";
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -260,11 +261,9 @@ function DisplayPageInner() {
     };
   }, [access, slug, fetchAppointments]);
 
-  const formatTime = (date: string) =>
-    new Date(date).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+  const formatTime = (date: string) => formatInstantInBusinessTz(date);
 
-  const formatClock = (d: Date) =>
-    d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  const formatClock = (d: Date) => formatInstantInBusinessTzWithSeconds(d);
 
   const staff = business?.staff || [];
   const byStaff = staff.map((s: any) => {

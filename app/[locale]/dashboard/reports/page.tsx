@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams } from "next/navigation";
+import { formatInstantInBusinessTz } from "@/lib/business-timezone";
 
 type AptRow = {
   id: string;
@@ -34,7 +35,7 @@ function defaultRange(): { from: string; to: string } {
 }
 
 function formatTime(iso: string) {
-  return new Date(iso).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+  return formatInstantInBusinessTz(iso);
 }
 
 function formatDateShort(iso: string) {

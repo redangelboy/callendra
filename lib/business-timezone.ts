@@ -44,3 +44,38 @@ export function businessDayUtcRange(ymd: string): { start: Date; end: Date } {
   const end = start.endOf("day");
   return { start: start.toJSDate(), end: end.toJSDate() };
 }
+
+/** 12-hour label for a wall-clock "HH:mm" string in business timezone (e.g. "1:00 pm"). */
+export function formatHhmmForDisplay(hhmm: string): string {
+  const [hStr, mStr] = hhmm.split(":");
+  const h = Number(hStr);
+  const min = Number(mStr);
+  if (Number.isNaN(h) || Number.isNaN(min)) return hhmm;
+  const dt = DateTime.fromObject(
+    { year: 2000, month: 1, day: 1, hour: h, minute: min },
+    { zone: BUSINESS_TIMEZONE }
+  );
+  if (!dt.isValid) return hhmm;
+  return dt.toFormat("h:mm a").toLowerCase();
+}
+
+/** Same instant as JS Date / ISO string, shown as wall clock in business timezone (e.g. appointment start). */
+export function formatInstantInBusinessTz(iso: string | Date): string {
+  const d = typeof iso === "string" ? new Date(iso) : iso;
+  const dt = DateTime.fromJSDate(d).setZone(BUSINESS_TIMEZONE);
+  if (!dt.isValid) return "";
+  return dt.toFormat("h:mm a").toLowerCase();
+}
+
+export function formatInstantInBusinessTzWithSeconds(iso: string | Date): string {
+  const d = typeof iso === "string" ? new Date(iso) : iso;
+  const dt = DateTime.fromJSDate(d).setZone(BUSINESS_TIMEZONE);
+  if (!dt.isValid) return "";
+  return dt.toFormat("h:mm:ss a").toLowerCase();
+}
+
+/** Wall-clock HH:mm in business timezone (for `<input type="time" value=…>`). */
+export function instantToHhmmInBusinessTz(iso: string | Date): string {
+  const d = typeof iso === "string" ? new Date(iso) : iso;
+  return DateTime.fromJSDate(d).setZone(BUSINESS_TIMEZONE).toFormat("HH:mm");
+}

@@ -3,7 +3,7 @@ import { DateTime } from "luxon";
 import { sendSMS, normalizePhoneForSms } from "./sms";
 import { sendBookingConfirmation } from "@/lib/email/send";
 import { resolveGoogleMapsDirectionsUrl } from "@/lib/google-maps-link";
-import { BUSINESS_TIMEZONE } from "@/lib/business-timezone";
+import { BUSINESS_TIMEZONE, formatHhmmForDisplay, formatInstantInBusinessTz } from "@/lib/business-timezone";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -16,7 +16,14 @@ function escapeHtml(s: string): string {
 }
 
 function formatStaffAppointmentWhen(date: Date): string {
-  return DateTime.fromJSDate(date).setZone(BUSINESS_TIMEZONE).toLocaleString(DateTime.DATETIME_MED_WITH_WEEKDAY);
+  const dt = DateTime.fromJSDate(date).setZone(BUSINESS_TIMEZONE);
+  return `${dt.toFormat("ccc, LLL d, yyyy")} · ${dt.toFormat("h:mm a").toLowerCase()}`;
+}
+
+function formatBookingTimeForNotify(time: string): string {
+  const t = String(time ?? "").trim();
+  if (/^([01]\d|2[0-3]):[0-5]\d$/.test(t)) return formatHhmmForDisplay(t);
+  return t;
 }
 
 function formatPriceUsd(amount: number): string {
@@ -124,7 +131,8 @@ export async function notifyClientBookingConfirmed({
   bookingLink: string;
 }) {
   const timePart = time || "";
-  const whenLine = timePart ? `${date} at ${timePart} (Central)` : date;
+  const timeDisplay = timePart ? formatBookingTimeForNotify(timePart) : "";
+  const whenLine = timeDisplay ? `${date} at ${timeDisplay} (Central)` : date;
   const mapsUrl = resolveGoogleMapsDirectionsUrl(
     googleMapsPlaceUrl ?? undefined,
     businessName,
@@ -153,7 +161,7 @@ export async function notifyClientBookingConfirmed({
         staffName,
         serviceName,
         date,
-        time,
+        time: timeDisplay || timePart,
         bookingLink,
         businessEmail: undefined,
         businessAddress,
@@ -196,11 +204,7 @@ export async function notifyCancelRequest({
   date: Date;
   reason: string;
 }) {
-  const dateStr = new Date(date).toLocaleString("en-US", {
-    dateStyle: "full",
-    timeStyle: "short",
-    timeZone: "America/Chicago",
-  });
+  const dateStr = `${DateTime.fromJSDate(date).setZone(BUSINESS_TIMEZONE).toFormat("EEEE, LLLL d, yyyy")} · ${formatInstantInBusinessTz(date)}`;
 
   // Email
   await resend.emails.send({

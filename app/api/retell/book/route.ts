@@ -3,7 +3,11 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { DateTime } from "luxon";
 import { loadLocationCatalog } from "@/lib/location-catalog";
-import { utcFromYmdAndTime, BUSINESS_TIMEZONE } from "@/lib/business-timezone";
+import {
+  utcFromYmdAndTime,
+  BUSINESS_TIMEZONE,
+  formatInstantInBusinessTz,
+} from "@/lib/business-timezone";
 import { findStaffIntervalConflict } from "@/lib/appointment-overlap";
 import { buildPublicBookingAbsUrl } from "@/lib/booking-public-url";
 import { notifyClientBookingConfirmed, notifyStaffAppointmentConfirmed } from "@/lib/notify";
@@ -28,10 +32,10 @@ function phonesMatch(stored: string, incoming: string): boolean {
 }
 
 function formatVoiceDateTime(d: Date): { date: string; time: string } {
-  const dt = DateTime.fromJSDate(d, { zone: BUSINESS_TIMEZONE });
+  const dt = DateTime.fromJSDate(d).setZone(BUSINESS_TIMEZONE);
   return {
     date: dt.toFormat("MMMM d, yyyy"),
-    time: dt.toFormat("h:mm a"),
+    time: dt.toFormat("h:mm a").toLowerCase(),
   };
 }
 
@@ -173,13 +177,17 @@ export async function POST(req: NextRequest) {
       const { date: dStr, time: tStr } = formatVoiceDateTime(apt.date);
       const staffName = apt.staff?.name ?? "—";
       const serviceName = apt.service?.name ?? "—";
+      const wall = DateTime.fromJSDate(apt.date).setZone(BUSINESS_TIMEZONE);
       return NextResponse.json({
         success: true,
         message: `You have an appointment on ${dStr} at ${tStr} with ${staffName} for ${serviceName}`,
         appointment: {
           id: apt.id,
-          date: DateTime.fromJSDate(apt.date, { zone: BUSINESS_TIMEZONE }).toFormat("yyyy-MM-dd"),
-          time: DateTime.fromJSDate(apt.date, { zone: BUSINESS_TIMEZONE }).toFormat("HH:mm"),
+          date: wall.toFormat("yyyy-MM-dd"),
+          /** Stable for tools / parsers (24h wall clock in business TZ). */
+          time: wall.toFormat("HH:mm"),
+          /** Same instant, human / voice-friendly (matches `message`). */
+          time12h: formatInstantInBusinessTz(apt.date),
           staffName,
           serviceName,
           status: apt.status,

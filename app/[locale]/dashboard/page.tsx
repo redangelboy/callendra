@@ -4,7 +4,12 @@ import { useParams } from "next/navigation";
 import { DateTime } from "luxon";
 import { bookingPathForBusiness, walkInPathForBusiness } from "@/lib/booking-path";
 import { isMainBusinessFromPayload } from "@/lib/main-business";
-import { BUSINESS_TIMEZONE } from "@/lib/business-timezone";
+import {
+  BUSINESS_TIMEZONE,
+  formatHhmmForDisplay,
+  formatInstantInBusinessTz,
+  instantToHhmmInBusinessTz,
+} from "@/lib/business-timezone";
 import { DashboardNewAppointmentModal } from "@/components/dashboard-new-appointment-modal";
 import { DashboardAppointmentExtraModal } from "@/components/dashboard-appointment-extra-modal";
 
@@ -266,7 +271,7 @@ export default function DashboardPage() {
     setEditingApt(apt);
     setEditForm({
       date: new Date(apt.date).toISOString().slice(0, 10),
-      time: new Date(apt.date).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }),
+      time: instantToHhmmInBusinessTz(apt.date),
       staffId: apt.staffId,
       serviceId: apt.serviceId,
     });
@@ -292,15 +297,9 @@ export default function DashboardPage() {
     fetchData();
   };
 
-  const formatTime = (date: string) => {
-    return new Date(date).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
-  };
+  const formatTime = (date: string) => formatInstantInBusinessTz(date);
 
-  const formatBreakRowTime = (businessYmd: string, startTime: string) =>
-    new Date(breakStartMillis(businessYmd, startTime)).toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+  const formatBreakRowTime = (_businessYmd: string, startTime: string) => formatHhmmForDisplay(startTime);
 
   const branchLocationsForBreaks = locations.filter(
     (loc: any) => loc.locationSlug && loc.locationSlug !== "" && loc.locationSlug !== "main"
@@ -949,7 +948,13 @@ export default function DashboardPage() {
                 <div key={apt.id} className="flex justify-between items-center border border-[var(--callendra-border)] rounded-xl px-5 py-3">
                   <div>
                     <div className="font-semibold">{apt.clientName} — {apt.service?.name}</div>
-                    <div className="text-sm text-[var(--callendra-text-secondary)]">with {apt.staff?.name} · {new Date(apt.date).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}</div>
+                    <div className="text-sm text-[var(--callendra-text-secondary)]">
+                      with {apt.staff?.name} ·{" "}
+                      {DateTime.fromJSDate(new Date(apt.date))
+                        .setZone(BUSINESS_TIMEZONE)
+                        .toFormat("LLL d, yyyy · h:mm a")
+                        .toLowerCase()}
+                    </div>
                     <div className="text-sm text-yellow-300 mt-1">Reason: {apt.cancelReason}</div>
                   </div>
                   <div className="flex gap-2">
@@ -1280,7 +1285,7 @@ export default function DashboardPage() {
                     value={t}
                     className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_10%,var(--callendra-bg))]"
                   >
-                    {t}
+                    {formatHhmmForDisplay(t)}
                   </option>
                 ))}
               </select>

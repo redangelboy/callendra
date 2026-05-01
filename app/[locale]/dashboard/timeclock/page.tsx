@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { DateTime } from "luxon";
-import { BUSINESS_TIMEZONE } from "@/lib/business-timezone";
+import { BUSINESS_TIMEZONE, formatInstantInBusinessTz } from "@/lib/business-timezone";
 import {
   breakOverlayPercents,
   breakSpansForWorkBlock,
@@ -54,7 +54,7 @@ function SelfieThumb({ url, onOpen }: { url: string | null | undefined; onOpen: 
 }
 
 function formatClock(iso: string) {
-  return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  return formatInstantInBusinessTz(iso);
 }
 
 function formatBreakMs(ms: number): string {

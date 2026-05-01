@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import { formatHhmmForDisplay } from "@/lib/business-timezone";
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -184,7 +185,9 @@ export default function SchedulePage() {
                   {s.schedules.map((sc: any) => (
                     <div key={sc.id} className="flex justify-between items-center bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] rounded-xl px-4 py-2">
                       <span className="text-sm font-medium w-24">{DAYS[sc.dayOfWeek]}</span>
-                      <span className="text-sm text-[var(--callendra-text-secondary)]">{sc.startTime} — {sc.endTime}</span>
+                      <span className="text-sm text-[var(--callendra-text-secondary)]">
+                        {formatHhmmForDisplay(sc.startTime)} — {formatHhmmForDisplay(sc.endTime)}
+                      </span>
                       <button onClick={() => handleDelete(sc.id)} className="text-[var(--callendra-text-secondary)] opacity-80 hover:text-red-400 transition text-xs">Remove</button>
                     </div>
                   ))}

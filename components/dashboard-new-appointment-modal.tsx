@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { DateTime } from "luxon";
-import { BUSINESS_TIMEZONE } from "@/lib/business-timezone";
+import { BUSINESS_TIMEZONE, formatHhmmForDisplay } from "@/lib/business-timezone";
 import { StaffAvatar } from "@/components/staff-avatar";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -394,7 +394,7 @@ export function DashboardNewAppointmentModal({
                             : "border-[var(--callendra-border)] hover:border-[var(--callendra-accent)]"
                         }`}
                       >
-                        {slot}
+                        {formatHhmmForDisplay(slot)}
                       </button>
                     ))}
                   </div>
@@ -421,7 +421,7 @@ export function DashboardNewAppointmentModal({
                   {selectedStaff.name} · {selectedService.name}
                 </div>
                 <div>
-                  {selectedDate} {selectedTime}
+                  {selectedDate} {formatHhmmForDisplay(selectedTime)}
                 </div>
               </div>
             </div>
@@ -506,7 +506,10 @@ export function DashboardNewAppointmentModal({
                   Next available:{" "}
                   <span className="text-[var(--callendra-text-primary)] font-medium">{nextResult.staffName}</span> on{" "}
                   <span className="text-[var(--callendra-text-primary)] font-medium">{nextResult.date}</span> at{" "}
-                  <span className="text-[var(--callendra-accent)] font-semibold">{nextResult.time}</span> - Book this?
+                  <span className="text-[var(--callendra-accent)] font-semibold">
+                    {formatHhmmForDisplay(nextResult.time)}
+                  </span>{" "}
+                  - Book this?
                 </p>
                 <div className="flex gap-2">
                   <button
