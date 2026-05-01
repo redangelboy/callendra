@@ -36,7 +36,7 @@ async function verifyRecaptcha(token: string): Promise<boolean> {
 }
 import { buildPublicBookingAbsUrl } from "@/lib/booking-public-url";
 import { notifyClientBookingConfirmed, notifyStaffAppointmentConfirmed } from "@/lib/notify";
-import { effectiveServicePrice } from "@/lib/location-catalog";
+import { effectiveServicePrice, resolveAppointmentPrimaryPrice } from "@/lib/location-catalog";
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL!
@@ -178,6 +178,8 @@ export async function POST(req: NextRequest) {
     // Checar overlap considerando duración del servicio
     const service = await prisma.service.findUnique({ where: { id: serviceId } });
     const serviceDuration = service?.duration || 30;
+    const primaryPrice =
+      (await effectiveServicePrice(prisma, serviceId, business.id)) ?? service?.price ?? 0;
     const appointmentEnd = new Date(appointmentDate.getTime() + serviceDuration * 60000);
 
     const conflict = await findStaffIntervalConflict(prisma, {
@@ -198,6 +200,8 @@ export async function POST(req: NextRequest) {
         businessId: business.id,
         staffId,
         serviceId,
+        serviceDurationMin: serviceDuration,
+        servicePriceSnapshot: primaryPrice,
         clientName: String(clientName).trim(),
         clientPhone: String(clientPhone ?? "").trim() || "",
         clientEmail: clientEmail != null && String(clientEmail).trim() ? String(clientEmail).trim() : null,
@@ -237,9 +241,10 @@ export async function POST(req: NextRequest) {
     }
     try {
       if (staffMember) {
-        let price = serviceMember?.price ?? 0;
-        const p = await effectiveServicePrice(prisma, serviceId, business.id);
-        if (p != null) price = p;
+        const price = await resolveAppointmentPrimaryPrice(prisma, {
+          ...appointment,
+          service: serviceMember,
+        });
         await notifyStaffAppointmentConfirmed({
           staffEmail: staffMember.email,
           staffPhone: staffMember.phone,

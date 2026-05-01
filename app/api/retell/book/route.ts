@@ -11,7 +11,8 @@ import {
 import { findStaffIntervalConflict } from "@/lib/appointment-overlap";
 import { buildPublicBookingAbsUrl } from "@/lib/booking-public-url";
 import { notifyClientBookingConfirmed, notifyStaffAppointmentConfirmed } from "@/lib/notify";
-import { effectiveServicePrice } from "@/lib/location-catalog";
+import { effectiveServicePrice, resolveAppointmentPrimaryPrice } from "@/lib/location-catalog";
+import { appointmentTotalDurationMin } from "@/lib/appointment-duration";
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL!,
@@ -57,7 +58,7 @@ async function findAppointmentForPhone(
       status: "confirmed",
       date: { gte: now },
     },
-    include: { staff: true, service: true },
+    include: { staff: true, service: true, extras: true },
     orderBy: { date: "asc" },
   });
   for (const apt of upcoming) {
@@ -68,7 +69,7 @@ async function findAppointmentForPhone(
 
   const recent = await prisma.appointment.findMany({
     where: { businessId, status: "confirmed" },
-    include: { staff: true, service: true },
+    include: { staff: true, service: true, extras: true },
     orderBy: { date: "desc" },
     take: 200,
   });
@@ -289,8 +290,13 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const serviceDuration = selectedService.duration || 30;
-      const appointmentEnd = new Date(appointmentDate.getTime() + serviceDuration * 60000);
+      const sameService = selectedService.id === apt.serviceId;
+      const blockMin = appointmentTotalDurationMin({
+        service: selectedService,
+        serviceDurationMin: sameService ? apt.serviceDurationMin : null,
+        extras: apt.extras ?? [],
+      });
+      const appointmentEnd = new Date(appointmentDate.getTime() + blockMin * 60000);
 
       const conflict = await findStaffIntervalConflict(prisma, {
         staffId: selectedStaff.id,
@@ -309,13 +315,28 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      const updatePayload: {
+        date: Date;
+        staffId: string;
+        serviceId: string;
+        serviceDurationMin?: number;
+        servicePriceSnapshot?: number;
+      } = {
+        date: appointmentDate,
+        staffId: selectedStaff.id,
+        serviceId: selectedService.id,
+      };
+      if (!sameService) {
+        updatePayload.serviceDurationMin = selectedService.duration ?? 30;
+        updatePayload.servicePriceSnapshot =
+          (await effectiveServicePrice(prisma, selectedService.id, business.id)) ??
+          selectedService.price ??
+          0;
+      }
+
       await prisma.appointment.update({
         where: { id: apt.id },
-        data: {
-          date: appointmentDate,
-          staffId: selectedStaff.id,
-          serviceId: selectedService.id,
-        },
+        data: updatePayload,
       });
 
       const displayName = apt.clientName;
@@ -388,6 +409,10 @@ export async function POST(req: NextRequest) {
     }
 
     const serviceDuration = selectedService.duration || 30;
+    const primaryPrice =
+      (await effectiveServicePrice(prisma, selectedService.id, business.id)) ??
+      selectedService.price ??
+      0;
     const appointmentEnd = new Date(appointmentDate.getTime() + serviceDuration * 60000);
 
     const conflict = await findStaffIntervalConflict(prisma, {
@@ -411,6 +436,8 @@ export async function POST(req: NextRequest) {
         businessId: business.id,
         staffId: selectedStaff.id,
         serviceId: selectedService.id,
+        serviceDurationMin: selectedService.duration ?? 30,
+        servicePriceSnapshot: primaryPrice,
         clientName,
         clientPhone: bookPhone,
         clientEmail: null,
@@ -455,9 +482,10 @@ export async function POST(req: NextRequest) {
       console.error("Retell client SMS notify error:", notifyErr);
     }
     try {
-      let price = selectedService.price ?? 0;
-      const ep = await effectiveServicePrice(prisma, selectedService.id, business.id);
-      if (ep != null) price = ep;
+      const price = await resolveAppointmentPrimaryPrice(prisma, {
+        ...appointment,
+        service: selectedService,
+      });
       await notifyStaffAppointmentConfirmed({
         staffEmail: selectedStaff.email,
         staffPhone: selectedStaff.phone,

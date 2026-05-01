@@ -173,6 +173,10 @@ model Appointment {
   businessId  String
   staffId     String
   serviceId   String?
+  /// Primary service duration (minutes) at booking time; falls back to Service.duration if null (legacy rows).
+  serviceDurationMin Int?
+  /// Primary service price (USD) at booking time for this location; falls back to catalog if null (legacy rows).
+  servicePriceSnapshot Float?
   clientName  String
   clientPhone String
   clientEmail String?

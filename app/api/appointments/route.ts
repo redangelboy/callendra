@@ -4,7 +4,7 @@ import { buildPublicBookingAbsUrl } from "@/lib/booking-public-url";
 import { businessDayUtcRange, utcFromYmdAndTime } from "@/lib/business-timezone";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { effectiveServicePrice } from "@/lib/location-catalog";
+import { effectiveServicePrice, resolveAppointmentPrimaryPrice } from "@/lib/location-catalog";
 import { findStaffIntervalConflict } from "@/lib/appointment-overlap";
 import { appointmentTotalDurationMin } from "@/lib/appointment-duration";
 import { APPOINTMENT_ACTIVE_DAY_LIST_FILTER } from "@/lib/appointment-blocking-status";
@@ -45,8 +45,7 @@ export async function GET(req: NextRequest) {
 
     const enriched = await Promise.all(
       appointments.map(async (apt) => {
-        const p = await effectiveServicePrice(prisma, apt.serviceId, businessId);
-        const effectivePrice = p ?? apt.service?.price ?? 0;
+        const effectivePrice = await resolveAppointmentPrimaryPrice(prisma, apt);
         const extrasSum = (apt.extras ?? []).reduce((s, e) => s + e.linePrice, 0);
         return {
           ...apt,
@@ -98,7 +97,14 @@ export async function PATCH(req: NextRequest) {
     if (date && time) updateData.date = utcFromYmdAndTime(date, time);
     else if (date) updateData.date = new Date(date);
     if (staffId) updateData.staffId = staffId;
-    if (serviceId) updateData.serviceId = serviceId;
+    if (serviceId) {
+      updateData.serviceId = serviceId;
+      const ns = await prisma.service.findUnique({ where: { id: serviceId } });
+      if (!ns) return NextResponse.json({ error: "Service not found" }, { status: 400 });
+      updateData.serviceDurationMin = ns.duration ?? 30;
+      const np = await effectiveServicePrice(prisma, serviceId, existing.businessId);
+      updateData.servicePriceSnapshot = np ?? ns.price ?? 0;
+    }
 
     if (Object.keys(updateData).length === 0) {
       return NextResponse.json({ error: "No valid updates" }, { status: 400 });
@@ -111,8 +117,10 @@ export async function PATCH(req: NextRequest) {
       const primarySvc = mergedServiceId
         ? await prisma.service.findUnique({ where: { id: mergedServiceId } })
         : existing.service;
+      const keepSnapshot = !serviceId || serviceId === existing.serviceId;
       const durMin = appointmentTotalDurationMin({
         service: primarySvc,
+        serviceDurationMin: keepSnapshot ? existing.serviceDurationMin : null,
         extras: existing.extras ?? [],
       });
       const mergedEnd = new Date(mergedStart.getTime() + durMin * 60_000);
@@ -143,11 +151,7 @@ export async function PATCH(req: NextRequest) {
     if (becameConfirmed && appointment.staff) {
       try {
         const sid = appointment.serviceId ?? existing.serviceId;
-        let price = appointment.service?.price ?? 0;
-        if (sid) {
-          const p = await effectiveServicePrice(prisma, sid, appointment.businessId);
-          if (p != null) price = p;
-        }
+        const price = await resolveAppointmentPrimaryPrice(prisma, appointment);
         await notifyStaffAppointmentConfirmed({
           staffEmail: appointment.staff.email,
           staffPhone: appointment.staff.phone,
@@ -221,6 +225,8 @@ export async function POST(req: NextRequest) {
 
     const aptDate = utcFromYmdAndTime(date, time);
     const service = svcLoc.service;
+    const primaryPrice =
+      (await effectiveServicePrice(prisma, serviceId, businessId)) ?? service.price ?? 0;
     const durMin = appointmentTotalDurationMin({ service, extras: [] });
     const aptEnd = new Date(aptDate.getTime() + durMin * 60_000);
 
@@ -249,6 +255,8 @@ export async function POST(req: NextRequest) {
         clientEmail: clientEmail != null && String(clientEmail).trim() ? String(clientEmail).trim() : null,
         staffId,
         serviceId,
+        serviceDurationMin: service.duration ?? 30,
+        servicePriceSnapshot: primaryPrice,
         businessId,
         date: aptDate,
         status: "confirmed",
@@ -283,10 +291,7 @@ export async function POST(req: NextRequest) {
         console.error("Dashboard booking client notify error:", e);
       }
       try {
-        const price =
-          (await effectiveServicePrice(prisma, serviceId, businessId)) ??
-          appointment.service?.price ??
-          0;
+        const price = await resolveAppointmentPrimaryPrice(prisma, appointment);
         if (appointment.staff) {
           await notifyStaffAppointmentConfirmed({
             staffEmail: appointment.staff.email,

@@ -43,3 +43,20 @@ export async function effectiveServicePrice(
   if (!sl?.service) return null;
   return sl.price ?? sl.service.price;
 }
+
+/** Primary-line USD price for an appointment: frozen snapshot if set, else catalog at location (legacy). */
+export async function resolveAppointmentPrimaryPrice(
+  prisma: PrismaClient,
+  apt: {
+    serviceId: string | null;
+    businessId: string;
+    servicePriceSnapshot: number | null;
+    service?: { price?: number | null } | null;
+  }
+): Promise<number> {
+  const snap = apt.servicePriceSnapshot;
+  if (snap != null && Number.isFinite(snap)) return snap;
+  if (!apt.serviceId) return 0;
+  const p = await effectiveServicePrice(prisma, apt.serviceId, apt.businessId);
+  return p ?? apt.service?.price ?? 0;
+}

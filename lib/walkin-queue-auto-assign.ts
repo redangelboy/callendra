@@ -50,6 +50,10 @@ async function takeQueueWithStaff(queueId: string, locationId: string, locationS
 
   const startAt = appointmentStartWithWalkInBuffer();
   const duration = Number.isFinite(queue.service.duration) && queue.service.duration > 0 ? queue.service.duration : 30;
+  const primaryPrice =
+    (await effectiveServicePrice(prisma, queue.serviceId, locationId)) ??
+    queue.service.price ??
+    0;
   const endAt = new Date(startAt.getTime() + duration * 60_000);
   const conflict = await findStaffIntervalConflict(prisma, {
     staffId,
@@ -64,6 +68,8 @@ async function takeQueueWithStaff(queueId: string, locationId: string, locationS
       businessId: locationId,
       staffId,
       serviceId: queue.serviceId,
+      serviceDurationMin: duration,
+      servicePriceSnapshot: primaryPrice,
       clientName: queue.clientName,
       clientPhone: queue.clientPhone ?? "",
       clientEmail: queue.clientEmail ?? null,
