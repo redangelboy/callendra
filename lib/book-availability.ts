@@ -9,6 +9,9 @@ import {
 import { appointmentTotalDurationMin } from "@/lib/appointment-duration";
 import { APPOINTMENT_BLOCKING_STATUS_FILTER } from "@/lib/appointment-blocking-status";
 
+/** Minute step between offered start times. Independent of service duration (e.g. 30 min haircut can start 19:20, 19:25, …). */
+export const BOOKING_SLOT_GRID_STEP_MINUTES = 5;
+
 export async function resolveBookableService(
   prisma: PrismaClient,
   params: { businessId: string; serviceId: string }
@@ -81,7 +84,8 @@ export async function getStaffServiceSlotsForDay(
   const enforceFutureOnly = params.excludePastForToday === true && params.date === todayYmd;
   const leadMinutes = Number.isFinite(params.minLeadMinutes) ? Math.max(0, Math.floor(params.minLeadMinutes!)) : 0;
   const minStartMillis = leadMinutes > 0 ? nowInBusinessTz.plus({ minutes: leadMinutes }).toMillis() : null;
-  for (let m = startMinutes; m + duration <= endMinutes; m += duration) {
+  const gridStep = BOOKING_SLOT_GRID_STEP_MINUTES;
+  for (let m = startMinutes; m + duration <= endMinutes; m += gridStep) {
     const h = Math.floor(m / 60);
     const min = m % 60;
     const timeStr = `${h.toString().padStart(2, "0")}:${min.toString().padStart(2, "0")}`;
