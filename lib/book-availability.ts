@@ -24,6 +24,42 @@ export async function resolveBookableService(
   return svcLoc.service;
 }
 
+/** True if [start, end) lies entirely inside the staff's active schedule window for that calendar day (business TZ). */
+export async function isStaffIntervalWithinBusinessSchedule(
+  prisma: PrismaClient,
+  params: { businessId: string; staffId: string; start: Date; end: Date }
+): Promise<boolean> {
+  const startDt = DateTime.fromJSDate(params.start).setZone(BUSINESS_TIMEZONE);
+  const endDt = DateTime.fromJSDate(params.end).setZone(BUSINESS_TIMEZONE);
+  const ymd = startDt.toFormat("yyyy-LL-dd");
+  if (endDt.toFormat("yyyy-LL-dd") !== ymd) return false;
+
+  const dayOfWeek = parseYmdToJsDayOfWeek(ymd);
+  const schedule = await prisma.schedule.findFirst({
+    where: {
+      businessId: params.businessId,
+      staffId: params.staffId,
+      dayOfWeek,
+      active: true,
+    },
+  });
+  if (!schedule) return false;
+
+  let schedStart: Date;
+  let schedEnd: Date;
+  try {
+    schedStart = utcFromYmdAndTime(ymd, schedule.startTime);
+    schedEnd = utcFromYmdAndTime(ymd, schedule.endTime);
+  } catch {
+    return false;
+  }
+  if (schedEnd.getTime() <= schedStart.getTime()) return false;
+
+  const s0 = params.start.getTime();
+  const e0 = params.end.getTime();
+  return s0 >= schedStart.getTime() && e0 <= schedEnd.getTime();
+}
+
 export async function getStaffServiceSlotsForDay(
   prisma: PrismaClient,
   params: {

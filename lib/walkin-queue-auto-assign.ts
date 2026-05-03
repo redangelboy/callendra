@@ -7,6 +7,7 @@ import { findStaffIntervalConflict } from "@/lib/appointment-overlap";
 import { buildPublicBookingAbsUrl } from "@/lib/booking-public-url";
 import { notifyClientBookingConfirmed, notifyStaffAppointmentConfirmed } from "@/lib/notify";
 import { effectiveServicePrice } from "@/lib/location-catalog";
+import { isStaffIntervalWithinBusinessSchedule } from "@/lib/book-availability";
 
 const WAITING_STATES = ["waiting", "notified"] as const;
 
@@ -28,16 +29,15 @@ type StaffLoad = {
   blockedCount: number;
 };
 
-function pickFreestStaff(staffLoads: StaffLoad[]): StaffLoad | null {
-  if (staffLoads.length === 0) return null;
-  const sorted = [...staffLoads].sort((a, b) => {
+function orderFreestStaff(staffLoads: StaffLoad[]): StaffLoad[] {
+  if (staffLoads.length === 0) return [];
+  return [...staffLoads].sort((a, b) => {
     const aNext = a.nextStart ?? Number.POSITIVE_INFINITY;
     const bNext = b.nextStart ?? Number.POSITIVE_INFINITY;
     if (aNext !== bNext) return bNext - aNext;
     if (a.blockedCount !== b.blockedCount) return a.blockedCount - b.blockedCount;
     return a.staffId.localeCompare(b.staffId);
   });
-  return sorted[0] ?? null;
 }
 
 async function takeQueueWithStaff(queueId: string, locationId: string, locationSlug: string, staffId: string) {
@@ -55,6 +55,14 @@ async function takeQueueWithStaff(queueId: string, locationId: string, locationS
     queue.service.price ??
     0;
   const endAt = new Date(startAt.getTime() + duration * 60_000);
+  const withinSchedule = await isStaffIntervalWithinBusinessSchedule(prisma, {
+    businessId: locationId,
+    staffId,
+    start: startAt,
+    end: endAt,
+  });
+  if (!withinSchedule) return null;
+
   const conflict = await findStaffIntervalConflict(prisma, {
     staffId,
     businessId: locationId,
@@ -243,14 +251,15 @@ export async function checkAndAutoAssign(locationId: string): Promise<void> {
     if (staffPool.length === 0 || remainingQueue.length === 0) return false;
     const qIdx = remainingQueue.findIndex(queuePredicate);
     if (qIdx < 0) return false;
-    const chosen = pickFreestStaff(staffPool);
-    if (!chosen) return false;
     const queue = remainingQueue[qIdx]!;
-    const taken = await takeQueueWithStaff(queue.id, locationId, location.slug, chosen.staffId);
-    if (!taken) return false;
-    remainingQueue.splice(qIdx, 1);
-    freeById.delete(chosen.staffId);
-    return true;
+    for (const chosen of orderFreestStaff(staffPool)) {
+      const taken = await takeQueueWithStaff(queue.id, locationId, location.slug, chosen.staffId);
+      if (!taken) continue;
+      remainingQueue.splice(qIdx, 1);
+      freeById.delete(chosen.staffId);
+      return true;
+    }
+    return false;
   };
 
   // Rule: if a staff member was just freed, pull oldest waiting immediately.
