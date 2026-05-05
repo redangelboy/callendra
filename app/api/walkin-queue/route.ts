@@ -118,6 +118,7 @@ export async function POST(req: NextRequest) {
       clientEmail?: string;
       clientPhone?: string;
       serviceId?: string;
+      smsOptIn?: boolean;
     };
     const locationSlug = (body.locationSlug ?? "").trim();
     const parentSlug = (body.parentSlug ?? "").trim();
@@ -135,6 +136,13 @@ export async function POST(req: NextRequest) {
     }
     if (!clientEmail && !clientPhone) {
       return NextResponse.json({ error: "Email or phone is required" }, { status: 400 });
+    }
+
+    if (body.smsOptIn !== true) {
+      return NextResponse.json(
+        { error: "Please agree to receive SMS messages to continue" },
+        { status: 400 }
+      );
     }
 
     const location = await (async () => {
@@ -174,6 +182,7 @@ export async function POST(req: NextRequest) {
         clientName,
         clientEmail: clientEmail || null,
         clientPhone: clientPhone || null,
+        smsOptIn: true,
         serviceId,
         status: "waiting",
       },

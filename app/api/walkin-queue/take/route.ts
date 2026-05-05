@@ -101,6 +101,7 @@ export async function POST(req: NextRequest) {
         clientName: queue.clientName,
         clientEmail: queue.clientEmail ?? null,
         clientPhone: queue.clientPhone ?? "",
+        smsOptIn: queue.smsOptIn,
         date: start,
         status: "confirmed",
         source: "walk_in_queue",

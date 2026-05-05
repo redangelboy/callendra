@@ -56,6 +56,8 @@ function useEmbedHeightPostMessage(enabled: boolean) {
 const viewportShell =
   "flex h-[100dvh] max-h-[100dvh] min-h-0 w-full min-w-0 flex-col overflow-hidden bg-[var(--callendra-bg)] pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)]";
 
+const SMS_CONSENT_ERROR = "Please agree to receive SMS messages to continue";
+
 export type PublicBookingFlowProps = {
   /** Secret from `?token=` — kiosk / iPad walk-in mode (no reCAPTCHA, no IP rate limit). */
   walkInToken?: string | null;
@@ -96,6 +98,7 @@ export function PublicBookingFlow({ walkInToken = null }: PublicBookingFlowProps
   const [selectedTime, setSelectedTime] = useState("");
   const [slots, setSlots] = useState<string[]>([]);
   const [form, setForm] = useState({ clientName: "", clientPhone: "", clientEmail: "" });
+  const [smsConsent, setSmsConsent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [error, setError] = useState("");
@@ -121,6 +124,7 @@ export function PublicBookingFlow({ walkInToken = null }: PublicBookingFlowProps
     setSelectedDate("");
     setSelectedTime("");
     setForm({ clientName: "", clientPhone: "", clientEmail: "" });
+    setSmsConsent(false);
     setError("");
     setWalkInAutoResetSeconds(null);
   }, []);
@@ -237,6 +241,10 @@ export function PublicBookingFlow({ walkInToken = null }: PublicBookingFlowProps
       setError("Phone is required for online booking");
       return;
     }
+    if (!smsConsent) {
+      setError(SMS_CONSENT_ERROR);
+      return;
+    }
     setLoading(true);
     setError("");
     try {
@@ -256,6 +264,7 @@ export function PublicBookingFlow({ walkInToken = null }: PublicBookingFlowProps
         date: selectedDate,
         time: selectedTime,
         ...form,
+        smsOptIn: smsConsent,
         recaptchaToken,
       };
       if (isWalkIn && walkInToken) body.walkInToken = walkInToken.trim();
@@ -613,6 +622,22 @@ export function PublicBookingFlow({ walkInToken = null }: PublicBookingFlowProps
                   onChange={(e) => setForm({ ...form, clientPhone: e.target.value })}
                   className="bg-[color-mix(in_srgb,var(--callendra-text-primary)_6%,var(--callendra-bg))] border border-[var(--callendra-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--callendra-accent)] transition min-w-0"
                 />
+                <label className="flex cursor-pointer items-start gap-3 sm:col-span-2">
+                  <input
+                    type="checkbox"
+                    checked={smsConsent}
+                    onChange={(e) => {
+                      const on = e.target.checked;
+                      setSmsConsent(on);
+                      if (on && error === SMS_CONSENT_ERROR) setError("");
+                    }}
+                    className="mt-1 h-4 w-4 shrink-0 rounded border-[var(--callendra-border)] text-[var(--callendra-accent)] focus:ring-[var(--callendra-accent)]"
+                  />
+                  <span className="text-sm leading-snug text-[var(--callendra-text-secondary)]">
+                    I agree to receive SMS appointment confirmations and reminders from this business. Message & data
+                    rates may apply. Reply STOP to opt out.
+                  </span>
+                </label>
                 <input
                   type="email"
                   placeholder="Email (optional)"

@@ -109,6 +109,7 @@ export async function POST(req: NextRequest) {
       clientName,
       clientPhone,
       clientEmail,
+      smsOptIn,
       walkInToken: bodyWalkInToken,
       recaptchaToken,
     } = body;
@@ -140,6 +141,13 @@ export async function POST(req: NextRequest) {
 
     if (!kioskOk && !String(clientPhone ?? "").trim()) {
       return NextResponse.json({ error: "Phone is required for online booking" }, { status: 400 });
+    }
+
+    if (smsOptIn !== true) {
+      return NextResponse.json(
+        { error: "Please agree to receive SMS messages to continue" },
+        { status: 400 }
+      );
     }
 
     if (!kioskOk) {
@@ -205,6 +213,7 @@ export async function POST(req: NextRequest) {
         clientName: String(clientName).trim(),
         clientPhone: String(clientPhone ?? "").trim() || "",
         clientEmail: clientEmail != null && String(clientEmail).trim() ? String(clientEmail).trim() : null,
+        smsOptIn: true,
         clientIp: ip || null,
         date: appointmentDate,
         status: "confirmed",

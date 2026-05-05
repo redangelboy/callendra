@@ -11,6 +11,9 @@ import { isStaffIntervalWithinBusinessSchedule } from "@/lib/book-availability";
 
 const WAITING_STATES = ["waiting", "notified"] as const;
 
+/** Walk-ins must wait at least this long before the system may auto-assign (manual take on staff-day is always allowed). */
+const AUTO_ASSIGN_BUFFER_MINUTES = 20;
+
 function emitQueueEvent(locationSlug: string, event: string, data: Record<string, unknown>) {
   const io = (global as { io?: { to: (room: string) => { emit: (name: string, payload: unknown) => void } } }).io;
   if (!io) return;
@@ -81,6 +84,7 @@ async function takeQueueWithStaff(queueId: string, locationId: string, locationS
       clientName: queue.clientName,
       clientPhone: queue.clientPhone ?? "",
       clientEmail: queue.clientEmail ?? null,
+      smsOptIn: queue.smsOptIn,
       date: startAt,
       status: "confirmed",
       source: "walk_in_queue_auto",
@@ -167,7 +171,7 @@ export async function checkAndAutoAssign(locationId: string): Promise<void> {
     where: {
       locationId,
       status: "waiting",
-      createdAt: { lte: now.minus({ minutes: 5 }).toJSDate() },
+      createdAt: { lte: now.minus({ minutes: AUTO_ASSIGN_BUFFER_MINUTES }).toJSDate() },
     },
     orderBy: { createdAt: "asc" },
   });
@@ -243,6 +247,8 @@ export async function checkAndAutoAssign(locationId: string): Promise<void> {
 
   const freeById = new Map(freeStaff.map((s) => [s.staffId, s]));
   const remainingQueue = [...queueRows];
+  const autoAssignEligibleAt = now.minus({ minutes: AUTO_ASSIGN_BUFFER_MINUTES }).toJSDate();
+  const rowMeetsAutoAssignBuffer = (createdAt: Date) => createdAt <= autoAssignEligibleAt;
 
   const takeOne = async (
     queuePredicate: (q: (typeof queueRows)[number]) => boolean,
@@ -262,17 +268,23 @@ export async function checkAndAutoAssign(locationId: string): Promise<void> {
     return false;
   };
 
-  // Rule: if a staff member was just freed, pull oldest waiting immediately.
+  // Rule: if a staff member was just freed, pull oldest eligible walk-in (same buffer as notify — no instant grab).
   while (true) {
     const recentlyFreedPool = Array.from(freeById.values()).filter((s) => s.recentlyFreed);
-    const ok = await takeOne((q) => q.status === "waiting", recentlyFreedPool);
+    const ok = await takeOne(
+      (q) => q.status === "waiting" && rowMeetsAutoAssignBuffer(q.createdAt),
+      recentlyFreedPool
+    );
     if (!ok) break;
   }
 
-  // If there are notified clients and free staff, keep assigning FIFO in the same pass.
+  // Notified clients (buffer already met) + free staff, FIFO.
   while (true) {
     const pool = Array.from(freeById.values());
-    const ok = await takeOne((q) => q.status === "notified", pool);
+    const ok = await takeOne(
+      (q) => q.status === "notified" && rowMeetsAutoAssignBuffer(q.createdAt),
+      pool
+    );
     if (!ok) break;
   }
 }

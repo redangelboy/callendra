@@ -181,6 +181,8 @@ model Appointment {
   clientPhone String
   clientEmail String?
   clientIp    String?
+  /// TCPA / opt-in: customer consented to SMS on public or walk-in booking flows.
+  smsOptIn    Boolean?
   date        DateTime
   status      String   @default("confirmed")
   cancelReason String?
@@ -201,6 +203,7 @@ model WalkInQueue {
   clientName    String
   clientEmail   String?
   clientPhone   String?
+  smsOptIn      Boolean?
   serviceId     String
   status        String   @default("waiting") // waiting, notified, taken, expired, cancelled
   staffId       String?

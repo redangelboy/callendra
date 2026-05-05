@@ -10,6 +10,8 @@ const shell =
 type ServiceRow = { id: string; name: string; duration: number; price: number };
 type QueueRow = { id: string; clientName: string; serviceName: string; waitMinutes: number };
 
+const SMS_CONSENT_ERROR = "Please agree to receive SMS messages to continue";
+
 function WalkInGate() {
   const params = useParams();
   const searchParams = useSearchParams();
@@ -27,6 +29,7 @@ function WalkInGate() {
   const [clientName, setClientName] = useState("");
   const [clientEmail, setClientEmail] = useState("");
   const [clientPhone, setClientPhone] = useState("");
+  const [smsConsent, setSmsConsent] = useState(false);
   const [position, setPosition] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -107,6 +110,10 @@ function WalkInGate() {
       setError("Please provide email or phone.");
       return;
     }
+    if (!smsConsent) {
+      setError(SMS_CONSENT_ERROR);
+      return;
+    }
     setError("");
     setLoading(true);
     try {
@@ -121,6 +128,7 @@ function WalkInGate() {
           clientEmail: clientEmail.trim() || undefined,
           clientPhone: clientPhone.trim() || undefined,
           serviceId: selectedServiceId,
+          smsOptIn: smsConsent,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -300,6 +308,22 @@ function WalkInGate() {
                 placeholder="Phone (optional)"
                 className="h-12 rounded-lg border border-[var(--callendra-border)] bg-transparent px-3 text-base outline-none"
               />
+              <label className="flex cursor-pointer items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={smsConsent}
+                  onChange={(e) => {
+                    const on = e.target.checked;
+                    setSmsConsent(on);
+                    if (on && error === SMS_CONSENT_ERROR) setError("");
+                  }}
+                  className="mt-1 h-4 w-4 shrink-0 rounded border-[var(--callendra-border)]"
+                />
+                <span className="text-sm leading-snug text-[var(--callendra-text-secondary)]">
+                  I agree to receive SMS appointment confirmations and reminders from this business. Message & data rates
+                  may apply. Reply STOP to opt out.
+                </span>
+              </label>
               {error ? <p className="text-sm text-red-400">{error}</p> : null}
             </div>
             <div className="grid grid-cols-2 gap-2">
@@ -332,6 +356,7 @@ function WalkInGate() {
                 setClientName("");
                 setClientEmail("");
                 setClientPhone("");
+                setSmsConsent(false);
                 setPosition(null);
               }}
               className="mt-6 rounded-lg border border-[var(--callendra-border)] px-6 py-3 text-sm font-medium"
